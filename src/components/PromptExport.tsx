@@ -13,7 +13,7 @@ type VideoState = {
   error?: string;
 };
 
-const MODEL_ID_DEFAULT = "veo-3.0-generate-preview";
+const MODEL_ID_DEFAULT = "veo-2.0-generate-001";
 const POLL_INTERVAL_MS = 6000;
 
 export default function PromptExport({ project, onUpdate }: Props) {

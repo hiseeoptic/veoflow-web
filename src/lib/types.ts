@@ -211,7 +211,6 @@ export interface VeoModelConfig {
 export const VEO_MODELS: VeoModelConfig[] = [
   { id: "veo2", name: "Veo 2", modelId: "veo-2.0-generate-001", label: "Veo 2 · Stable", maxDuration: 8 },
   { id: "veo3", name: "Veo 3", modelId: "veo-3.0-generate-preview", label: "Veo 3 · With Audio", maxDuration: 8 },
-  { id: "veo4", name: "Veo 4", modelId: "veo-4.0-generate-preview", label: "Veo 4 · Ultra HD", maxDuration: 8 },
 ];
 
 export const VEO_ASPECT_RATIOS = ["16:9", "9:16", "1:1"];
