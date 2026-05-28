@@ -185,6 +185,7 @@ export enum AppView {
   EDITOR = 'EDITOR',
   ASSETS = 'ASSETS',
   EXPORT = 'EXPORT',
+  GUIDE = 'GUIDE',
 }
 
 export const VEO_STYLES = [

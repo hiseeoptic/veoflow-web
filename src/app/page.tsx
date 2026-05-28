@@ -5,6 +5,7 @@ import Sidebar from "@/components/Sidebar";
 import CharacterEditor from "@/components/CharacterEditor";
 import ScriptProcessor from "@/components/ScriptProcessor";
 import PromptExport from "@/components/PromptExport";
+import UserGuide from "@/components/UserGuide";
 
 export default function Home() {
   const [view, setView] = useState<AppView>(AppView.EDITOR);
@@ -35,6 +36,8 @@ export default function Home() {
         return <ScriptProcessor project={project} onUpdate={updateProject} />;
       case AppView.EXPORT:
         return <PromptExport project={project} onUpdate={updateProject} />;
+      case AppView.GUIDE:
+        return <UserGuide />;
       default:
         return null;
     }
