@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 import { buildRuleEngine } from "@/lib/ruleEngine";
 import { compileMasterManifest } from "@/lib/manifestCompiler";
 import { environmentLibrary } from "@/lib/environment/environmentLibrary";
 import { validateEnvironment } from "@/lib/environment/environmentValidator";
 import { validateArchetype } from "@/lib/validator";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
 const ruleEngine = buildRuleEngine();
 
 export async function POST(req: NextRequest) {
@@ -19,15 +19,9 @@ export async function POST(req: NextRequest) {
     const generationContext = ruleEngine.getManifestGenerationContext();
     const ecosystemInjection = JSON.stringify(environmentLibrary);
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      response_format: { type: "json_object" },
-      max_tokens: 16384,
-      messages: [
-        { role: "system", content: systemInstruction },
-        {
-          role: "user",
-          content: `${generationContext}
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: `${generationContext}
 
 [ECOSYSTEM SOURCE LIBRARY - INJECTED FOR REFERENCE]
 ${ecosystemInjection}
@@ -43,12 +37,15 @@ Return a JSON object with these top-level keys:
 - "character_manifests": array of character manifest objects (character_id, visual_dna_full >150 words, voice_profile_id, region, accent_strength, timbre, pitch_range_hz, speech_rate_wpm, emotion_band, voice_dna_tech)
 - "environment_lock": object with "master_state" containing full EnvironmentMasterState
 - "camera_lock": object with lens_profile, grading_lut, fps, shutter_angle
-- "audio_lock": object with ambient_layer_base, reverb_profile, voice_profile_id, region, accent_strength, timbre, pitch_range_hz, speech_rate_wpm, emotion_band`
-        }
-      ]
+- "audio_lock": object with ambient_layer_base, reverb_profile, voice_profile_id, region, accent_strength, timbre, pitch_range_hz, speech_rate_wpm, emotion_band`,
+      config: {
+        systemInstruction,
+        responseMimeType: "application/json",
+        maxOutputTokens: 16384,
+      }
     });
 
-    const text = response.choices[0]?.message?.content || "{}";
+    const text = response.text || "{}";
     const data = JSON.parse(text);
 
     const characterManifests = Array.isArray(data.character_manifests) ? data.character_manifests : [];

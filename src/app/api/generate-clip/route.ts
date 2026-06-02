@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 import { buildRuleEngine } from "@/lib/ruleEngine";
 import { assembleClipPrompt } from "@/lib/promptAssembler";
 import { validateUnifiedPrompt } from "@/lib/promptValidator";
 import { validateEnvironment } from "@/lib/environment/environmentValidator";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
 const ruleEngine = buildRuleEngine();
 
 async function generateHash(message: string) {
@@ -53,14 +53,11 @@ ${additionalContext}`;
 
     const systemInstruction = ruleEngine.getSystemInstruction();
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      response_format: { type: "json_object" },
-      max_tokens: 16384,
-      messages: [
-        {
-          role: "system",
-          content: `${systemInstruction}
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: userPromptContent,
+      config: {
+        systemInstruction: `${systemInstruction}
 
 [OUTPUT SCHEMA]
 Return a JSON object with these keys:
@@ -68,13 +65,13 @@ Return a JSON object with these keys:
 - duration (number, always 8)
 - visual_prompt: object with subjects (array), environment (full object), environment_invariant (string), lighting_invariant (string), camera_invariant (string), action_variant (string), dialogue (array of {speaker, text}), technical (object), full_flattened_prompt (string >5000 chars combining all invariants verbatim)
 - audio_config: object with ambient_layer_base, reverb_profile, voice_profile_id, region, accent_strength, timbre, pitch_range_hz, speech_rate_wpm, emotion_band, text
-- metadata: object with continuity_hash, validation_passed`
-        },
-        { role: "user", content: userPromptContent }
-      ]
+- metadata: object with continuity_hash, validation_passed`,
+        responseMimeType: "application/json",
+        maxOutputTokens: 16384,
+      }
     });
 
-    const text = response.choices[0]?.message?.content || "{}";
+    const text = response.text || "{}";
     const result = JSON.parse(text);
 
     if (!result || !result.visual_prompt) {

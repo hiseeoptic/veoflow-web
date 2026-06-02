@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
 
 function splitScenesBySeparator(script: string): string[] {
   const cleanScript = script.replace(/\r\n/g, '\n').trim();
@@ -34,25 +34,19 @@ export async function POST(req: NextRequest) {
     for (let i = 0; i < sceneBlocks.length; i += BATCH_SIZE) {
       const chunk = sceneBlocks.slice(i, i + BATCH_SIZE);
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o",
-        response_format: { type: "json_object" },
-        max_tokens: 8192,
-        messages: [
-          {
-            role: "system",
-            content: `ROLE: Scene Block Mapper. Each input block = EXACTLY ONE 8s SCENE.
-Output a JSON object with key "segments" containing an array of objects, each with: scriptSegment (string), actionSummary (string), characterId (string).`
-          },
-          {
-            role: "user",
-            content: `[CHARACTERS_DB] ${JSON.stringify(project.characters.map((c: any) => ({ id: c.id, name: c.name })))}
-[SCENE_BLOCKS_BATCH_START_INDEX_${i}] ${JSON.stringify(chunk)}`
-          }
-        ]
+      const response = await ai.models.generateContent({
+        model: "gemini-2.0-flash",
+        contents: `[CHARACTERS_DB] ${JSON.stringify(project.characters.map((c: any) => ({ id: c.id, name: c.name })))}
+[SCENE_BLOCKS_BATCH_START_INDEX_${i}] ${JSON.stringify(chunk)}`,
+        config: {
+          systemInstruction: `ROLE: Scene Block Mapper. Each input block = EXACTLY ONE 8s SCENE.
+Output a JSON object with key "segments" containing an array of objects, each with: scriptSegment (string), actionSummary (string), characterId (string).`,
+          responseMimeType: "application/json",
+          maxOutputTokens: 8192,
+        }
       });
 
-      const text = response.choices[0]?.message?.content || '{"segments":[]}';
+      const text = response.text || '{"segments":[]}';
       const parsed = JSON.parse(text);
       const segments = Array.isArray(parsed.segments) ? parsed.segments : Array.isArray(parsed) ? parsed : [];
       allParsedSegments.push(...(segments.length > 0 ? segments : chunk.map(txt => ({ scriptSegment: txt, actionSummary: "Scene block", characterId: "unknown" }))));
