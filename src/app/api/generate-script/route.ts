@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 import {
   ScriptIdea,
   StoryBible,
@@ -9,7 +9,7 @@ import {
   StoryLocation,
 } from "@/lib/types";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
 
 // Allow up to 5 min processing on Vercel
 export const maxDuration = 300;
@@ -54,17 +54,17 @@ function pickFramework(durationSec: number): "long" | "short" {
 }
 
 async function jsonCall(systemPrompt: string, userPrompt: string, maxTokens = 8192) {
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o",
-    response_format: { type: "json_object" },
-    max_tokens: maxTokens,
-    temperature: 0.8,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
+  const response = await ai.models.generateContent({
+    model: "gemini-2.0-flash",
+    contents: userPrompt,
+    config: {
+      systemInstruction: systemPrompt,
+      responseMimeType: "application/json",
+      maxOutputTokens: maxTokens,
+      temperature: 0.8,
+    },
   });
-  const text = response.choices[0]?.message?.content || "{}";
+  const text = response.text || "{}";
   return JSON.parse(text);
 }
 
@@ -248,7 +248,6 @@ function formatScript(
 ): string {
   const lines: string[] = [];
 
-  // Header
   lines.push(`# ${bible.log_line}`);
   lines.push("");
 
@@ -264,7 +263,6 @@ function formatScript(
     lines.push("");
   });
 
-  // Final CTA
   if (bible.cta_line) {
     lines.push(`[CTA] ${bible.cta_line}`);
   }
@@ -277,7 +275,6 @@ export async function POST(req: NextRequest) {
   try {
     const idea: ScriptIdea = await req.json();
 
-    // Validation
     if (!idea.idea || idea.idea.length < 5) {
       return NextResponse.json({ error: "Idea is too short. Min 5 characters." }, { status: 400 });
     }
@@ -290,7 +287,6 @@ export async function POST(req: NextRequest) {
     // STAGE 1: Story Bible
     const storyBible = await generateStoryBible(idea);
 
-    // Normalize character IDs/data shape for app compatibility
     storyBible.characters = (storyBible.characters || []).map((c: any, i: number) => ({
       id: c.id || `char-${i}-${Date.now()}`,
       name: c.name || `Character ${i + 1}`,
@@ -327,7 +323,6 @@ export async function POST(req: NextRequest) {
       allScenes.push(...batch);
     }
 
-    // Format script
     const formattedScript = formatScript(allScenes, storyBible);
 
     const result: ScriptGenResult = {
