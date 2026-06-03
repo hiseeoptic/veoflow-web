@@ -182,11 +182,92 @@ export interface Project {
 }
 
 export enum AppView {
+  SCRIPT_GEN = 'SCRIPT_GEN',
   EDITOR = 'EDITOR',
   ASSETS = 'ASSETS',
   EXPORT = 'EXPORT',
   GUIDE = 'GUIDE',
 }
+
+// === SCRIPT GENERATOR TYPES ===
+export type ScriptPlatform = 'youtube' | 'short' | 'reel' | 'tiktok' | 'story';
+export type ScriptLanguage = 'vi' | 'en';
+export type ScriptTone =
+  | 'educational' | 'inspiring' | 'dramatic' | 'comedic'
+  | 'documentary' | 'commercial' | 'storytelling' | 'mystery';
+
+export interface ScriptIdea {
+  idea: string;
+  platform: ScriptPlatform;
+  durationSeconds: number;
+  tone: ScriptTone;
+  audience: string;
+  language: ScriptLanguage;
+  style: string;
+  characterCount: number;
+  customAngle?: string;
+  hookStyle?: 'shocking' | 'question' | 'statement' | 'visual' | 'auto';
+}
+
+export interface StoryLocation {
+  location_id: string;
+  display_name: string;
+  description: string;
+  visual_anchors: string;
+  archetype_ref?: string;
+}
+
+export interface BeatItem {
+  beat_id: string;
+  beat_name: string;
+  scene_range: string;
+  percentage: number;
+  description: string;
+  emotional_intent: string;
+}
+
+export interface StoryBible {
+  log_line: string;
+  premise: string;
+  characters: Character[];
+  locations: StoryLocation[];
+  visual_style_note: string;
+  emotional_arc: string;
+  hook_strategy: string;
+  cta_line: string;
+}
+
+export interface ScriptGenResult {
+  storyBible: StoryBible;
+  beatSheet: BeatItem[];
+  script: string;
+  metadata: {
+    generatedAt: string;
+    sceneCount: number;
+    estimatedDuration: string;
+    platform: ScriptPlatform;
+    language: ScriptLanguage;
+  };
+}
+
+export const SCRIPT_PLATFORMS: { id: ScriptPlatform; label: string; defaultSec: number; range: string }[] = [
+  { id: 'youtube', label: 'YouTube Long-form', defaultSec: 300, range: '120-600s' },
+  { id: 'story',   label: 'YouTube Short / Story', defaultSec: 60,  range: '30-90s' },
+  { id: 'short',   label: 'Shorts / Reels',   defaultSec: 45,  range: '15-60s' },
+  { id: 'reel',    label: 'Instagram Reel',   defaultSec: 30,  range: '15-90s' },
+  { id: 'tiktok',  label: 'TikTok',           defaultSec: 30,  range: '15-180s' },
+];
+
+export const SCRIPT_TONES: { id: ScriptTone; label: string }[] = [
+  { id: 'educational',  label: 'Educational / Giáo dục' },
+  { id: 'inspiring',    label: 'Inspiring / Truyền cảm hứng' },
+  { id: 'storytelling', label: 'Storytelling / Kể chuyện' },
+  { id: 'dramatic',     label: 'Dramatic / Kịch tính' },
+  { id: 'comedic',      label: 'Comedic / Hài hước' },
+  { id: 'documentary',  label: 'Documentary / Tài liệu' },
+  { id: 'commercial',   label: 'Commercial / Quảng cáo' },
+  { id: 'mystery',      label: 'Mystery / Bí ẩn' },
+];
 
 export const VEO_STYLES = [
   "Realistic Life",

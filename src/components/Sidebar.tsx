@@ -9,6 +9,12 @@ interface SidebarProps {
 
 const navItems = [
   {
+    id: AppView.SCRIPT_GEN,
+    label: "0. Script Generator",
+    icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4",
+    accent: "emerald",
+  },
+  {
     id: AppView.EDITOR,
     label: "1. Script & Prompt",
     icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
@@ -53,22 +59,30 @@ export default function Sidebar({ currentView, onViewChange, isOpen = false }: S
         <p className="px-4 text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-4">
           Production Pipeline
         </p>
-        {navItems.map(item => (
-          <button
-            key={item.id}
-            onClick={() => onViewChange(item.id)}
-            className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-sm font-bold transition-all duration-300 ${
-              currentView === item.id
-                ? "bg-zinc-900 text-white shadow-xl border border-white/10 translate-x-2"
-                : "text-zinc-500 hover:bg-zinc-900/50 hover:text-zinc-300"
-            }`}
-          >
-            <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} />
-            </svg>
-            <span className="text-left">{item.label}</span>
-          </button>
-        ))}
+        {navItems.map(item => {
+          const isActive = currentView === item.id;
+          const isEmerald = (item as any).accent === "emerald";
+          return (
+            <button
+              key={item.id}
+              onClick={() => onViewChange(item.id)}
+              className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-sm font-bold transition-all duration-300 ${
+                isActive
+                  ? isEmerald
+                    ? "bg-emerald-900/40 text-emerald-400 shadow-xl border border-emerald-500/30 translate-x-2"
+                    : "bg-zinc-900 text-white shadow-xl border border-white/10 translate-x-2"
+                  : isEmerald
+                  ? "text-emerald-500/70 hover:bg-emerald-900/20 hover:text-emerald-400 border border-transparent hover:border-emerald-500/10"
+                  : "text-zinc-500 hover:bg-zinc-900/50 hover:text-zinc-300"
+              }`}
+            >
+              <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} />
+              </svg>
+              <span className="text-left">{item.label}</span>
+            </button>
+          );
+        })}
 
         <div className="pt-6 pb-2">
           <p className="px-4 text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-4">

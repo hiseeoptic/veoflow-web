@@ -6,6 +6,7 @@ import CharacterEditor from "@/components/CharacterEditor";
 import ScriptProcessor from "@/components/ScriptProcessor";
 import PromptExport from "@/components/PromptExport";
 import UserGuide from "@/components/UserGuide";
+import ScriptGenerator from "@/components/ScriptGenerator";
 
 export default function Home() {
   const [view, setView] = useState<AppView>(AppView.EDITOR);
@@ -30,6 +31,8 @@ export default function Home() {
 
   const renderView = () => {
     switch (view) {
+      case AppView.SCRIPT_GEN:
+        return <ScriptGenerator project={project} onUpdate={updateProject} onSwitchView={handleViewChange} />;
       case AppView.ASSETS:
         return <CharacterEditor project={project} onUpdate={updateProject} />;
       case AppView.EDITOR:
