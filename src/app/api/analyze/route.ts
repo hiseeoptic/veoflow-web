@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
       const chunk = sceneBlocks.slice(i, i + BATCH_SIZE);
 
       const response = await ai.models.generateContent({
-        model: "gemini-2.0-flash",
+        model: "gemini-2.5-flash",
         contents: `[CHARACTERS_DB] ${JSON.stringify(project.characters.map((c: any) => ({ id: c.id, name: c.name })))}
 [SCENE_BLOCKS_BATCH_START_INDEX_${i}] ${JSON.stringify(chunk)}`,
         config: {
