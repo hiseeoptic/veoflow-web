@@ -148,6 +148,24 @@ export interface MasterManifest {
   };
   camera_lock: any;
   audio_lock: any;
+  /**
+   * PHASE 2: Scene Bible Tokens
+   * Short verbatim strings that MUST be repeated identically in every clip's flattened prompt
+   * to prevent style/lighting/lens drift across long videos.
+   * Example tokens: "4200K warm tungsten key + cool 5600K rim", "Kodak Vision3 250D film stock",
+   *                 "85mm f/1.8 lens, shallow DoF", "DCI-P3 wide gamut, warm-cool color grade"
+   */
+  scene_bible_tokens?: string[];
+}
+
+/** PHASE 2: Sub-shot within an 8s clip with timestamp */
+export interface TimestampSubshot {
+  /** e.g., "00:00-00:02" */
+  time: string;
+  /** Camera + action description */
+  description: string;
+  /** Optional SFX cue */
+  sfx?: string;
 }
 
 export interface VideoClip {
@@ -175,6 +193,10 @@ export interface VideoClip {
       technical: { description: string };
       /** Phase 1: Explicit negatives for Veo */
       negative_prompt?: string;
+      /** Phase 2: Timestamp sub-shots for dynamic 8s clips */
+      timestamp_subshots?: TimestampSubshot[];
+      /** Phase 2: Scene bible tokens repeated verbatim */
+      scene_bible_tokens_used?: string[];
     };
     audio_config: any;
     metadata: any;
@@ -183,6 +205,10 @@ export interface VideoClip {
   flattenedPrompt: string;
   /** Phase 1: Negative prompt extracted for Veo API */
   negativePrompt?: string;
+  /** Phase 2: Last frame of this clip (extracted client-side via canvas) - used as first frame of next clip */
+  lastFrameBase64?: string;
+  /** Phase 2: First frame chained from previous clip */
+  firstFrameBase64?: string;
   videoOperationName?: string;
   videoUri?: string;
   videoStatus?: VideoGenStatus;

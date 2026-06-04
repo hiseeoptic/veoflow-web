@@ -75,7 +75,18 @@ Return a JSON object with these top-level keys:
   IMPORTANT: If user provided values for these fields, use them VERBATIM. If empty, infer from name/role/description.
 - "environment_lock": object with "master_state" containing full EnvironmentMasterState
 - "camera_lock": object with lens_profile, grading_lut, fps, shutter_angle
-- "audio_lock": object with ambient_layer_base, reverb_profile, voice_profile_id, region, accent_strength, timbre, pitch_range_hz, speech_rate_wpm, emotion_band`,
+- "audio_lock": object with ambient_layer_base, reverb_profile, voice_profile_id, region, accent_strength, timbre, pitch_range_hz, speech_rate_wpm, emotion_band
+- "scene_bible_tokens": array of 5-10 SHORT VERBATIM strings (each <120 chars) - PHASE 2 CRITICAL:
+    These are the IMMUTABLE STYLE TOKENS that must be REPEATED IDENTICALLY in every clip's flattened prompt.
+    Examples:
+      "4200K warm tungsten key light + 5600K cool rim light"
+      "85mm f/1.8 cinema lens, shallow DoF, 24fps shutter 180°"
+      "Kodak Vision3 250D film stock emulation, slight grain"
+      "DCI-P3 color grade: teal shadows, warm highlights, contrast 1.2"
+      "Camera height: eye-level 1.6m, horizon lock ±3 degrees"
+      "Ambient: low-frequency room tone -42dB, no music bed"
+    These tokens act as 'style fingerprints' that prevent visual drift across 5-10 minute videos.
+    Make them SPECIFIC, MEASURABLE, and SHORT (will be copy-pasted into 40+ prompts).`,
       config: {
         systemInstruction,
         responseMimeType: "application/json",
@@ -102,6 +113,20 @@ Return a JSON object with these top-level keys:
       } catch {}
     }
 
+    // PHASE 2: Extract scene_bible_tokens with fallback if AI didn't generate
+    const sceneBibleTokens: string[] = Array.isArray(data.scene_bible_tokens)
+      ? data.scene_bible_tokens.filter((t: any) => typeof t === "string" && t.length > 0 && t.length < 200)
+      : [];
+
+    // Fallback: derive tokens from camera_lock + audio_lock if none generated
+    if (sceneBibleTokens.length === 0 && data.camera_lock) {
+      const cam = data.camera_lock;
+      if (cam.lens_profile) sceneBibleTokens.push(`Lens: ${cam.lens_profile}`);
+      if (cam.grading_lut) sceneBibleTokens.push(`Color grade: ${cam.grading_lut}`);
+      if (cam.fps) sceneBibleTokens.push(`Frame rate: ${cam.fps}fps, shutter ${cam.shutter_angle || 180}°`);
+      if (data.audio_lock?.ambient_layer_base) sceneBibleTokens.push(`Ambient: ${data.audio_lock.ambient_layer_base}`);
+    }
+
     const manifest = {
       project_id: project.id,
       generated_at: compiledManifest.generated_at,
@@ -109,7 +134,8 @@ Return a JSON object with these top-level keys:
       character_manifests: characterManifests,
       environment_lock: data.environment_lock || {},
       camera_lock: data.camera_lock || {},
-      audio_lock: data.audio_lock || {}
+      audio_lock: data.audio_lock || {},
+      scene_bible_tokens: sceneBibleTokens
     };
 
     return NextResponse.json({ manifest });

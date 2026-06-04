@@ -53,9 +53,15 @@ ${additionalContext}`;
 
     const systemInstruction = ruleEngine.getSystemInstruction();
 
+    // PHASE 2: Extract scene_bible_tokens for verbatim repetition
+    const sceneBibleTokens: string[] = (masterManifest as any).scene_bible_tokens || [];
+    const sceneBibleBlock = sceneBibleTokens.length > 0
+      ? `\n[SCENE BIBLE TOKENS - MUST APPEAR VERBATIM IN full_flattened_prompt]\n${sceneBibleTokens.map((t: string, i: number) => `${i + 1}. "${t}"`).join("\n")}\n`
+      : "";
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: userPromptContent,
+      contents: userPromptContent + sceneBibleBlock,
       config: {
         systemInstruction: `${systemInstruction}
 
@@ -72,7 +78,17 @@ Return a JSON object with these keys:
   - action_variant (string)
   - dialogue (array of {speaker, text}) - text MUST be quoted dialogue
   - technical (object)
-  - negative_prompt (string) - PHASE 1: explicit negatives for Veo, e.g. "do not alter hair length or color, do not remove glasses, do not change outfit, no extra fingers, no text overlays, no watermarks, no facial hair changes, no random props added"
+  - negative_prompt (string) - PHASE 1: explicit negatives for Veo
+  - timestamp_subshots (array) - PHASE 2: 4 sub-shots within 8s clip, each {time, description, sfx?}
+      Example: [
+        {"time": "00:00-00:02", "description": "Medium shot from behind Sarah as she pushes vine aside revealing path", "sfx": "rustling leaves"},
+        {"time": "00:02-00:04", "description": "Reverse close-up on Sarah's freckled face, awe-struck expression", "sfx": "distant bird calls"},
+        {"time": "00:04-00:06", "description": "Tracking shot following Sarah stepping into clearing, touching stone carvings"},
+        {"time": "00:06-00:08", "description": "Wide high-angle crane shot, Sarah small in vast temple complex"}
+      ]
+      Per Google official Veo 3.1 guide: timestamp prompting creates dynamic, cinematic 8s clips.
+      Each sub-shot ~2s. Adjust shots to match action_variant pacing.
+  - scene_bible_tokens_used (array of strings) - PHASE 2: list the EXACT tokens from scene bible you included in full_flattened_prompt
   - full_flattened_prompt (string >5000 chars combining all invariants verbatim)
 - audio_config: object with ambient_layer_base, reverb_profile, voice_profile_id, region, accent_strength, timbre, pitch_range_hz, speech_rate_wpm, emotion_band, text
 - metadata: object with continuity_hash, validation_passed
@@ -81,17 +97,27 @@ Return a JSON object with these keys:
 When you write dialogue inside full_flattened_prompt, use COLON FORMAT:
   CharacterName says: "exact dialogue text"
 This format prevents Veo from rendering subtitles in the video.
-DO NOT use formats like "CharacterName: text" or "speaker: text". Always include 'says:' before the quoted string.
+DO NOT use formats like "CharacterName: text". Always include 'says:' before the quoted string.
 
 [CRITICAL: NEGATIVE_PROMPT FIELD]
 The negative_prompt field is MANDATORY. It must explicitly list things that MUST NOT change between clips:
-- hair (length, color, style)
-- outfit (all clothing items)
-- accessories (glasses, jewelry, watches)
-- facial features (no facial hair changes if character has none)
-- skin tone
-- signature_props of the character
-Plus generic technical negatives: "no text overlays, no watermarks, no subtitles, no extra fingers, no blurry faces, no cartoon effects"`,
+- hair, outfit, accessories, facial features, skin tone, signature_props
+Plus generic technical negatives: "no text overlays, no watermarks, no subtitles, no extra fingers, no blurry faces, no cartoon effects"
+
+[CRITICAL PHASE 2: SCENE BIBLE TOKENS VERBATIM]
+You received scene bible tokens at the bottom of the input. You MUST:
+1. Copy each token VERBATIM (character-for-character) into full_flattened_prompt
+2. List which ones you used in scene_bible_tokens_used array
+3. DO NOT paraphrase, abbreviate, or substitute synonyms for these tokens
+4. They act as style fingerprints to prevent visual drift across the video
+
+[CRITICAL PHASE 2: TIMESTAMP SUBSHOTS IN full_flattened_prompt]
+Include the timestamp_subshots in full_flattened_prompt using this exact format:
+[00:00-00:02] <description>
+[00:02-00:04] <description>
+[00:04-00:06] <description>
+[00:06-00:08] <description>
+This creates dynamic camera movement instead of one static 8s shot.`,
         responseMimeType: "application/json",
         maxOutputTokens: 16384,
       }
@@ -104,7 +130,7 @@ Plus generic technical negatives: "no text overlays, no watermarks, no subtitles
       return NextResponse.json({ clip: { ...targetClip, status: "failed", errorLog: "Invalid JSON response", final_json_output: null } });
     }
 
-    // PHASE 1: Build flattened prompt with COLON DIALOGUE format + forensic DNA fields
+    // PHASE 1+2: Build flattened prompt with COLON DIALOGUE + forensic DNA + timestamps + scene bible
     let flattened = result.visual_prompt.full_flattened_prompt;
     if (!flattened) {
       const vp = result.visual_prompt;
@@ -120,9 +146,13 @@ Plus generic technical negatives: "no text overlays, no watermarks, no subtitles
         return parts.join('. ');
       }).join(' | ') || '';
 
-      // PHASE 1: Use colon-format dialogue (prevents subtitles)
       const dialogueStr = (vp.dialogue || []).map((d: any) =>
         `${d.speaker} says: "${d.text}"`
+      ).join(' ');
+
+      // PHASE 2: Format timestamp sub-shots
+      const subshotsStr = (vp.timestamp_subshots || []).map((s: any) =>
+        `[${s.time}] ${s.description}${s.sfx ? ` SFX: ${s.sfx}.` : ''}`
       ).join(' ');
 
       flattened = [
@@ -130,9 +160,20 @@ Plus generic technical negatives: "no text overlays, no watermarks, no subtitles
         `Environment Invariant: ${vp.environment_invariant || JSON.stringify(vp.environment)}.`,
         `Lighting Invariant: ${vp.lighting_invariant || 'Natural cinematic lighting'}.`,
         `Camera Invariant: ${vp.camera_invariant || 'Cinematic 35mm lens, eye-level'}.`,
-        `Action: ${vp.action_variant || ''}.`,
+        subshotsStr ? `Sequence: ${subshotsStr}` : `Action: ${vp.action_variant || ''}.`,
         dialogueStr ? `Dialogue: ${dialogueStr}` : '',
       ].filter(Boolean).join(' ').replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+
+    // PHASE 2: ENFORCE scene_bible_tokens verbatim presence in flattened (fallback if model forgot)
+    if (sceneBibleTokens.length > 0) {
+      const missingTokens: string[] = [];
+      for (const token of sceneBibleTokens) {
+        if (!flattened.includes(token)) missingTokens.push(token);
+      }
+      if (missingTokens.length > 0) {
+        flattened = `${flattened} [STYLE LOCK] ${missingTokens.join(' | ')}`;
+      }
     }
 
     // PHASE 1: Extract negative prompt for Veo

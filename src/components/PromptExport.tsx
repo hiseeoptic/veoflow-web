@@ -16,6 +16,53 @@ type VideoState = {
 const MODEL_ID_DEFAULT = "veo-2.0-generate-001";
 const POLL_INTERVAL_MS = 6000;
 
+/**
+ * PHASE 2: Extract the last frame of a video as a base64 PNG.
+ * Used to chain clip N's final frame as clip N+1's first frame for seamless continuity.
+ */
+async function extractLastFrameFromVideo(videoUrl: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    video.crossOrigin = "anonymous";
+    video.muted = true;
+    video.preload = "auto";
+    video.src = videoUrl;
+
+    const timeout = setTimeout(() => resolve(null), 30000);
+
+    video.addEventListener("loadedmetadata", () => {
+      // Seek to the very last frame (duration - 0.05s for safety)
+      video.currentTime = Math.max(0, video.duration - 0.1);
+    });
+
+    video.addEventListener("seeked", () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          clearTimeout(timeout);
+          resolve(null);
+          return;
+        }
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+        clearTimeout(timeout);
+        resolve(dataUrl);
+      } catch (err) {
+        clearTimeout(timeout);
+        resolve(null);
+      }
+    });
+
+    video.addEventListener("error", () => {
+      clearTimeout(timeout);
+      resolve(null);
+    });
+  });
+}
+
 export default function PromptExport({ project, onUpdate }: Props) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selectedModelId, setSelectedModelId] = useState(MODEL_ID_DEFAULT);
@@ -23,6 +70,8 @@ export default function PromptExport({ project, onUpdate }: Props) {
   const [duration, setDuration] = useState(8);
   const [videoStates, setVideoStates] = useState<Record<string, VideoState>>({});
   const [activeTab, setActiveTab] = useState<"prompts" | "videos">("prompts");
+  // PHASE 2: Toggle for frame chaining
+  const [chainFrames, setChainFrames] = useState(true);
 
   const completedClips = project.clips.filter(c => c.status === "completed" && c.flattenedPrompt);
 
@@ -81,6 +130,27 @@ export default function PromptExport({ project, onUpdate }: Props) {
     URL.revokeObjectURL(url);
   };
 
+  /**
+   * PHASE 2: After a clip is ready, extract its last frame for chaining.
+   * Returns a promise that resolves when the frame is extracted and stored.
+   */
+  const extractAndStoreLastFrame = useCallback(async (clipId: string, videoUri: string): Promise<string | null> => {
+    try {
+      const proxiedUrl = `/api/video-download?uri=${encodeURIComponent(videoUri)}&inline=1`;
+      const lastFrame = await extractLastFrameFromVideo(proxiedUrl);
+      if (lastFrame) {
+        const newClips = project.clips.map(c =>
+          c.id === clipId ? { ...c, lastFrameBase64: lastFrame } : c
+        );
+        onUpdate({ clips: newClips });
+      }
+      return lastFrame;
+    } catch (e) {
+      console.warn("Frame extraction failed:", e);
+      return null;
+    }
+  }, [project.clips, onUpdate]);
+
   const pollVideoStatus = useCallback(async (clipId: string, operationName: string) => {
     const maxAttempts = 60;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -102,6 +172,11 @@ export default function PromptExport({ project, onUpdate }: Props) {
               c.id === clipId ? { ...c, videoUri: data.videoUri, videoStatus: "ready" as VideoGenStatus } : c
             );
             onUpdate({ clips: newClips });
+
+            // PHASE 2: Extract last frame in background for chaining
+            if (chainFrames) {
+              setTimeout(() => extractAndStoreLastFrame(clipId, data.videoUri), 1500);
+            }
           } else {
             setClipVideoState(clipId, { status: "failed", error: data.error || "No video URI returned." });
           }
@@ -113,18 +188,30 @@ export default function PromptExport({ project, onUpdate }: Props) {
       }
     }
     setClipVideoState(clipId, { status: "failed", error: "Timed out waiting for video." });
-  }, [project.clips, onUpdate]);
+  }, [project.clips, onUpdate, chainFrames, extractAndStoreLastFrame]);
 
-  const generateVideo = async (clip: VideoClip) => {
+  const generateVideo = async (clip: VideoClip, firstFrameOverride?: string) => {
     if (!clip.flattenedPrompt) return;
     setClipVideoState(clip.id, { status: "queued" });
 
     try {
-      // PHASE 1: Find character reference image for I2V (best modality for consistency)
+      // PHASE 1: Find character reference image for I2V
       const character = project.characters.find(c => c.id === clip.characterId);
       const referenceImage = character?.imageBase64;
 
-      // PHASE 1: Use generated or default negative prompt
+      // PHASE 2: Frame chaining - prefer previous clip's last frame over character image
+      let firstFrameImage = firstFrameOverride;
+      if (chainFrames && !firstFrameImage) {
+        const currentIdx = project.clips.findIndex(c => c.id === clip.id);
+        if (currentIdx > 0) {
+          const prevClip = project.clips[currentIdx - 1];
+          if (prevClip.lastFrameBase64) {
+            firstFrameImage = prevClip.lastFrameBase64;
+          }
+        }
+      }
+
+      // Negative prompt
       const negativePrompt = clip.negativePrompt
         || clip.final_json_output?.visual_prompt?.negative_prompt
         || "no text overlays, no watermarks, no subtitles, no cartoon effects, no unrealistic proportions, no blurry faces, no extra fingers, no facial hair changes, do not alter hair length or color, do not change outfit, do not remove accessories, no random props";
@@ -137,12 +224,21 @@ export default function PromptExport({ project, onUpdate }: Props) {
           modelId: selectedModelId,
           durationSeconds: duration,
           aspectRatio,
-          referenceImage,    // PHASE 1: Pass character image for I2V
-          negativePrompt,    // PHASE 1: Pass negative prompt
+          referenceImage,
+          firstFrameImage,   // PHASE 2: chain from previous clip's last frame
+          negativePrompt,
         }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
+
+      // Store firstFrame on the clip for traceability
+      if (firstFrameImage) {
+        const newClips = project.clips.map(c =>
+          c.id === clip.id ? { ...c, firstFrameBase64: firstFrameImage } : c
+        );
+        onUpdate({ clips: newClips });
+      }
 
       setClipVideoState(clip.id, { status: "generating", operationName: data.operationName });
       pollVideoStatus(clip.id, data.operationName);
@@ -151,12 +247,49 @@ export default function PromptExport({ project, onUpdate }: Props) {
     }
   };
 
+  /**
+   * PHASE 2: Sequential generation with frame chaining.
+   * Each clip waits for the previous one to finish AND extract its last frame
+   * before starting, ensuring true seamless continuity.
+   */
   const generateAllVideos = async () => {
-    for (const clip of completedClips) {
+    let previousLastFrame: string | undefined = undefined;
+
+    for (let i = 0; i < completedClips.length; i++) {
+      const clip = completedClips[i];
       const vs = videoStates[clip.id];
-      if (vs?.status === "ready" || vs?.status === "generating" || vs?.status === "queued") continue;
-      await generateVideo(clip);
-      await new Promise(r => setTimeout(r, 2000));
+
+      // Skip already done/in-progress
+      if (vs?.status === "ready" || clip.videoUri) {
+        // Pick up its last frame for next iteration
+        if (chainFrames && clip.lastFrameBase64) {
+          previousLastFrame = clip.lastFrameBase64;
+        }
+        continue;
+      }
+      if (vs?.status === "generating" || vs?.status === "queued") continue;
+
+      await generateVideo(clip, previousLastFrame);
+
+      // Wait for completion before chaining
+      if (chainFrames) {
+        await new Promise<void>((resolve) => {
+          const checkInterval = setInterval(() => {
+            const currentState = videoStates[clip.id];
+            const currentClip = project.clips.find(c => c.id === clip.id);
+            if (currentState?.status === "ready" || currentState?.status === "failed" || currentClip?.videoUri) {
+              clearInterval(checkInterval);
+              if (currentClip?.lastFrameBase64) {
+                previousLastFrame = currentClip.lastFrameBase64;
+              }
+              resolve();
+            }
+          }, 3000);
+          setTimeout(() => { clearInterval(checkInterval); resolve(); }, 600000);
+        });
+      } else {
+        await new Promise(r => setTimeout(r, 2000));
+      }
     }
   };
 
@@ -300,7 +433,22 @@ export default function PromptExport({ project, onUpdate }: Props) {
                 <option value={8}>8 seconds</option>
               </select>
             </div>
-            <div className="flex flex-col justify-end">
+            <div className="flex flex-col justify-end gap-2">
+              <button
+                onClick={() => setChainFrames(!chainFrames)}
+                className={`rounded-xl px-3 py-2 border transition-all text-left ${
+                  chainFrames
+                    ? "bg-emerald-900/40 border-emerald-500/40 text-emerald-300"
+                    : "bg-zinc-800 border-white/10 text-zinc-500"
+                }`}
+                title="PHASE 2: Chain last frame of each clip to first frame of next clip"
+              >
+                <div className="text-[9px] font-black uppercase flex items-center gap-1.5">
+                  <span className={`w-1.5 h-1.5 rounded-full ${chainFrames ? "bg-emerald-400 animate-pulse" : "bg-zinc-600"}`} />
+                  Frame Chain
+                </div>
+                <div className="text-[10px] font-black mt-0.5">{chainFrames ? "ON · Seamless" : "OFF"}</div>
+              </button>
               <div className="bg-zinc-800 rounded-xl px-3 py-2 border border-indigo-600/20">
                 <div className="text-[9px] text-indigo-400 font-bold uppercase">{selectedModel.name}</div>
                 <div className="text-[10px] text-zinc-300 font-black mt-0.5">{aspectRatio} · {duration}s</div>

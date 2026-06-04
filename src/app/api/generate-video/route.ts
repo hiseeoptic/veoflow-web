@@ -2,16 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 
 /**
- * Phase 1 upgrade: Image-to-Video (I2V) support
+ * PHASE 1 + 2 upgrade: I2V + First/Last Frame chaining
  *
- * Per Google's official Veo 3 guide:
- * > "Image-to-Video (I2V) is the BEST modality for character consistency
- * >  across multiple clips. If you need the same character in different scenes,
- * >  start each generation with the same reference image."
+ * Phase 1: Reference image (character lock via I2V)
+ * Phase 2: First frame from previous clip's last frame (seamless continuity)
  *
- * This route now accepts an optional `referenceImage` (base64 data URL or raw base64)
- * and forwards it to Veo as the seed image. This dramatically reduces character
- * drift across long-form videos (5-10 min, 40+ clips).
+ * Priority order for the image seed passed to Veo:
+ *   1. firstFrameImage (Phase 2) - last frame of previous clip, for seamless continuity
+ *   2. referenceImage  (Phase 1) - character portrait, for identity lock
+ *
+ * Per Google Veo 3.1 docs: providing a starting image dramatically improves
+ * character consistency. Chaining the last frame of clip N as the first frame
+ * of clip N+1 creates the most seamless multi-clip narratives.
  */
 
 function stripDataUrl(b64: string): { data: string; mimeType: string } {
@@ -32,6 +34,7 @@ export async function POST(req: NextRequest) {
       durationSeconds,
       aspectRatio,
       referenceImage,
+      firstFrameImage,
       negativePrompt,
     }: {
       prompt: string;
@@ -39,6 +42,7 @@ export async function POST(req: NextRequest) {
       durationSeconds?: number;
       aspectRatio?: string;
       referenceImage?: string;
+      firstFrameImage?: string;
       negativePrompt?: string;
     } = await req.json();
 
@@ -51,7 +55,6 @@ export async function POST(req: NextRequest) {
 
     const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
 
-    // Build config with optional negative prompt
     const config: any = {
       numberOfVideos: 1,
       durationSeconds: durationSeconds || 8,
@@ -62,16 +65,17 @@ export async function POST(req: NextRequest) {
       config.negativePrompt = negativePrompt.trim();
     }
 
-    // Build request payload
     const payload: any = {
       model: modelId || "veo-3.0-generate-preview",
       prompt,
       config,
     };
 
-    // Phase 1: Attach reference image for I2V (character consistency)
-    if (referenceImage && referenceImage.trim()) {
-      const { data, mimeType } = stripDataUrl(referenceImage);
+    // PHASE 2 has priority: first frame from previous clip's last frame
+    // PHASE 1 fallback: character reference image
+    const seedImage = firstFrameImage || referenceImage;
+    if (seedImage && seedImage.trim()) {
+      const { data, mimeType } = stripDataUrl(seedImage);
       payload.image = {
         imageBytes: data,
         mimeType,
@@ -80,7 +84,10 @@ export async function POST(req: NextRequest) {
 
     const operation = await ai.models.generateVideos(payload);
 
-    return NextResponse.json({ operationName: operation.name });
+    return NextResponse.json({
+      operationName: operation.name,
+      seedSource: firstFrameImage ? "first_frame_chained" : referenceImage ? "character_reference" : "none",
+    });
   } catch (error: any) {
     console.error("Veo generation error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });

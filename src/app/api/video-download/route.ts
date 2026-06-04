@@ -5,6 +5,8 @@ export async function GET(req: NextRequest) {
   try {
     const uri = req.nextUrl.searchParams.get("uri");
     const filename = req.nextUrl.searchParams.get("filename") || "veo_video.mp4";
+    // PHASE 2: inline=1 serves as video stream (for canvas frame extraction)
+    const inline = req.nextUrl.searchParams.get("inline") === "1";
 
     if (!uri) {
       return NextResponse.json({ error: "uri parameter is required." }, { status: 400 });
@@ -25,13 +27,21 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: `Failed to fetch video: ${videoResp.status}` }, { status: 502 });
     }
 
-    return new NextResponse(videoResp.body, {
-      headers: {
-        "Content-Type": videoResp.headers.get("Content-Type") || "video/mp4",
-        "Content-Disposition": `attachment; filename="${filename}"`,
-        "Cache-Control": "no-store",
-      },
-    });
+    const headers: Record<string, string> = {
+      "Content-Type": videoResp.headers.get("Content-Type") || "video/mp4",
+      "Cache-Control": "no-store",
+    };
+
+    if (inline) {
+      // PHASE 2: stream inline so client video element can decode for frame capture
+      headers["Content-Disposition"] = "inline";
+      // Allow same-origin canvas access (no CORS taint)
+      headers["Access-Control-Allow-Origin"] = "*";
+    } else {
+      headers["Content-Disposition"] = `attachment; filename="${filename}"`;
+    }
+
+    return new NextResponse(videoResp.body, { headers });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
