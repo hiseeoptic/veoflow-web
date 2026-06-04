@@ -48,6 +48,13 @@ export const assembleClipPrompt = ({
     subjects_definition: subjects.map((char) => ({
       id: char.character_id,
       visual_dna: char.visual_dna_full,
+      // PHASE 1: Forensic identity locks - prevent drift across clips
+      eye_details: char.eye_details_locked,
+      skin_texture: char.skin_texture_locked,
+      accessories: char.accessories_locked,
+      gait_posture: char.gait_posture_locked,
+      signature_props: char.signature_props_locked,
+      identity_negatives: char.identity_negatives,
       voice: {
         id: char.voice_profile_id,
         region: char.region,

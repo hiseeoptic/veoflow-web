@@ -10,6 +10,18 @@ export interface Character {
   voice_timbre: string;
   description: string;
   imageBase64?: string;
+
+  // === PHASE 1: Forensic-level DNA fields (anti-drift) ===
+  /** e.g., "warm brown, slightly almond-shaped, double eyelid" */
+  eye_details?: string;
+  /** e.g., "smooth light beige, natural pores, minimal makeup, single beauty mark on left cheek" */
+  skin_texture?: string;
+  /** e.g., "silver wristwatch on left wrist, gold wedding band, wire-rimmed glasses" */
+  accessories?: string;
+  /** e.g., "confident upright posture, slow deliberate walk, hands often in pockets" */
+  gait_posture?: string;
+  /** Props that ALWAYS appear with this character e.g., "brown leather satchel, fountain pen, notebook" */
+  signature_props?: string;
 }
 
 export interface CharacterLibraryItem {
@@ -49,6 +61,15 @@ export interface CharacterManifestItem {
   speech_rate_wpm: number;
   emotion_band: string;
   voice_dna_tech: string;
+
+  // === PHASE 1: Forensic identity locks ===
+  eye_details_locked?: string;
+  skin_texture_locked?: string;
+  accessories_locked?: string;
+  gait_posture_locked?: string;
+  signature_props_locked?: string;
+  /** Compiled negative prompt specific to this character (do not change X, do not remove Y) */
+  identity_negatives?: string;
 }
 
 export interface EnvironmentMasterState {
@@ -152,12 +173,16 @@ export interface VideoClip {
       action: string;
       dialogue: Array<{ speaker: string; text: string }>;
       technical: { description: string };
+      /** Phase 1: Explicit negatives for Veo */
+      negative_prompt?: string;
     };
     audio_config: any;
     metadata: any;
   } | null;
   duration: number;
   flattenedPrompt: string;
+  /** Phase 1: Negative prompt extracted for Veo API */
+  negativePrompt?: string;
   videoOperationName?: string;
   videoUri?: string;
   videoStatus?: VideoGenStatus;

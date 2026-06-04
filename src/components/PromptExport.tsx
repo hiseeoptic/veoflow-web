@@ -120,6 +120,15 @@ export default function PromptExport({ project, onUpdate }: Props) {
     setClipVideoState(clip.id, { status: "queued" });
 
     try {
+      // PHASE 1: Find character reference image for I2V (best modality for consistency)
+      const character = project.characters.find(c => c.id === clip.characterId);
+      const referenceImage = character?.imageBase64;
+
+      // PHASE 1: Use generated or default negative prompt
+      const negativePrompt = clip.negativePrompt
+        || clip.final_json_output?.visual_prompt?.negative_prompt
+        || "no text overlays, no watermarks, no subtitles, no cartoon effects, no unrealistic proportions, no blurry faces, no extra fingers, no facial hair changes, do not alter hair length or color, do not change outfit, do not remove accessories, no random props";
+
       const res = await fetch("/api/generate-video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -128,6 +137,8 @@ export default function PromptExport({ project, onUpdate }: Props) {
           modelId: selectedModelId,
           durationSeconds: duration,
           aspectRatio,
+          referenceImage,    // PHASE 1: Pass character image for I2V
+          negativePrompt,    // PHASE 1: Pass negative prompt
         }),
       });
       const data = await res.json();

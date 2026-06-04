@@ -111,7 +111,12 @@ ${idea.hookStyle && idea.hookStyle !== "auto" ? `Hook style preference: ${idea.h
       "clothing": "string - specific outfit anchor for visual consistency",
       "voice_profile_id": "string - e.g., 'hanoi_male_warm', 'saigon_female_bright', 'english_male_deep'",
       "voice_timbre": "string",
-      "description": "string - 50+ word complete description"
+      "description": "string - 50+ word complete description",
+      "eye_details": "string - PHASE 1 FORENSIC: e.g., 'warm brown almond-shaped eyes with double eyelid, slight crow's feet'",
+      "skin_texture": "string - PHASE 1 FORENSIC: e.g., 'smooth light beige, natural pores, single beauty mark on left cheek'",
+      "accessories": "string - PHASE 1 FORENSIC: items ALWAYS worn, e.g., 'silver wristwatch on left wrist, wire-rimmed glasses'",
+      "gait_posture": "string - PHASE 1 FORENSIC: e.g., 'confident upright stance, hands often in pockets'",
+      "signature_props": "string - PHASE 1 FORENSIC: props always appearing with character, e.g., 'brown leather satchel, fountain pen'"
     }
   ],
   "locations": [
@@ -298,6 +303,12 @@ export async function POST(req: NextRequest) {
       voice_profile_id: c.voice_profile_id || "hanoi_female_soft_trust",
       voice_timbre: c.voice_timbre || "neutral",
       description: c.description || "",
+      // PHASE 1: Forensic DNA fields
+      eye_details: c.eye_details || "",
+      skin_texture: c.skin_texture || "",
+      accessories: c.accessories || "",
+      gait_posture: c.gait_posture || "",
+      signature_props: c.signature_props || "",
     })) as Character[];
 
     storyBible.locations = (storyBible.locations || []) as StoryLocation[];

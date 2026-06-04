@@ -63,9 +63,35 @@ ${additionalContext}`;
 Return a JSON object with these keys:
 - clip_id (string)
 - duration (number, always 8)
-- visual_prompt: object with subjects (array), environment (full object), environment_invariant (string), lighting_invariant (string), camera_invariant (string), action_variant (string), dialogue (array of {speaker, text}), technical (object), full_flattened_prompt (string >5000 chars combining all invariants verbatim)
+- visual_prompt: object with:
+  - subjects (array of {character_id, visual_dna_full, outfit_dna, eye_details, skin_texture, accessories, gait_posture, signature_props, activity})
+  - environment (full object)
+  - environment_invariant (string)
+  - lighting_invariant (string)
+  - camera_invariant (string)
+  - action_variant (string)
+  - dialogue (array of {speaker, text}) - text MUST be quoted dialogue
+  - technical (object)
+  - negative_prompt (string) - PHASE 1: explicit negatives for Veo, e.g. "do not alter hair length or color, do not remove glasses, do not change outfit, no extra fingers, no text overlays, no watermarks, no facial hair changes, no random props added"
+  - full_flattened_prompt (string >5000 chars combining all invariants verbatim)
 - audio_config: object with ambient_layer_base, reverb_profile, voice_profile_id, region, accent_strength, timbre, pitch_range_hz, speech_rate_wpm, emotion_band, text
-- metadata: object with continuity_hash, validation_passed`,
+- metadata: object with continuity_hash, validation_passed
+
+[CRITICAL: DIALOGUE FORMAT IN full_flattened_prompt]
+When you write dialogue inside full_flattened_prompt, use COLON FORMAT:
+  CharacterName says: "exact dialogue text"
+This format prevents Veo from rendering subtitles in the video.
+DO NOT use formats like "CharacterName: text" or "speaker: text". Always include 'says:' before the quoted string.
+
+[CRITICAL: NEGATIVE_PROMPT FIELD]
+The negative_prompt field is MANDATORY. It must explicitly list things that MUST NOT change between clips:
+- hair (length, color, style)
+- outfit (all clothing items)
+- accessories (glasses, jewelry, watches)
+- facial features (no facial hair changes if character has none)
+- skin tone
+- signature_props of the character
+Plus generic technical negatives: "no text overlays, no watermarks, no subtitles, no extra fingers, no blurry faces, no cartoon effects"`,
         responseMimeType: "application/json",
         maxOutputTokens: 16384,
       }
@@ -78,16 +104,46 @@ Return a JSON object with these keys:
       return NextResponse.json({ clip: { ...targetClip, status: "failed", errorLog: "Invalid JSON response", final_json_output: null } });
     }
 
+    // PHASE 1: Build flattened prompt with COLON DIALOGUE format + forensic DNA fields
     let flattened = result.visual_prompt.full_flattened_prompt;
     if (!flattened) {
       const vp = result.visual_prompt;
-      flattened = `Subjects: ${vp.subjects?.map((s: any) => `${s.visual_dna_full}. Outfit: ${s.outfit_dna || ''}`).join('. ') || ''}. Environment Invariant: ${vp.environment_invariant || JSON.stringify(vp.environment)}. Lighting Invariant: ${vp.lighting_invariant || 'Natural'}. Camera Invariant: ${vp.camera_invariant || 'Cinematic'}. Action: ${vp.action_variant}`.replace(/\n/g, ' ').trim();
+      const subjectsStr = vp.subjects?.map((s: any) => {
+        const parts = [s.visual_dna_full];
+        if (s.outfit_dna) parts.push(`Outfit (locked): ${s.outfit_dna}`);
+        if (s.eye_details) parts.push(`Eyes: ${s.eye_details}`);
+        if (s.skin_texture) parts.push(`Skin: ${s.skin_texture}`);
+        if (s.accessories) parts.push(`Accessories (always present): ${s.accessories}`);
+        if (s.gait_posture) parts.push(`Posture: ${s.gait_posture}`);
+        if (s.signature_props) parts.push(`Signature props: ${s.signature_props}`);
+        if (s.activity) parts.push(`Activity: ${s.activity}`);
+        return parts.join('. ');
+      }).join(' | ') || '';
+
+      // PHASE 1: Use colon-format dialogue (prevents subtitles)
+      const dialogueStr = (vp.dialogue || []).map((d: any) =>
+        `${d.speaker} says: "${d.text}"`
+      ).join(' ');
+
+      flattened = [
+        `Subjects: ${subjectsStr}.`,
+        `Environment Invariant: ${vp.environment_invariant || JSON.stringify(vp.environment)}.`,
+        `Lighting Invariant: ${vp.lighting_invariant || 'Natural cinematic lighting'}.`,
+        `Camera Invariant: ${vp.camera_invariant || 'Cinematic 35mm lens, eye-level'}.`,
+        `Action: ${vp.action_variant || ''}.`,
+        dialogueStr ? `Dialogue: ${dialogueStr}` : '',
+      ].filter(Boolean).join(' ').replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
     }
+
+    // PHASE 1: Extract negative prompt for Veo
+    const negativePrompt = result.visual_prompt.negative_prompt
+      || "no text overlays, no watermarks, no subtitles, no cartoon effects, no extra fingers, no blurry faces, do not alter hair, do not change outfit, do not remove accessories, no facial hair changes, no random props";
 
     const updatedClip = {
       ...targetClip,
       status: 'completed',
       flattenedPrompt: flattened,
+      negativePrompt,
       final_json_output: result
     };
 

@@ -19,6 +19,25 @@ export async function POST(req: NextRequest) {
     const generationContext = ruleEngine.getManifestGenerationContext();
     const ecosystemInjection = JSON.stringify(environmentLibrary);
 
+    // PHASE 1: Send full character data including new forensic DNA fields
+    const charactersDetail = (project.characters || []).map((c: any) => ({
+      id: c.id,
+      name: c.name,
+      gender: c.gender,
+      age_group: c.age_group,
+      hair: c.hair,
+      face_features: c.face_features,
+      clothing: c.clothing,
+      voice_profile_id: c.voice_profile_id,
+      voice_timbre: c.voice_timbre,
+      // Phase 1 forensic fields
+      eye_details: c.eye_details,
+      skin_texture: c.skin_texture,
+      accessories: c.accessories,
+      gait_posture: c.gait_posture,
+      signature_props: c.signature_props,
+    }));
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: `${generationContext}
@@ -29,12 +48,31 @@ ${ecosystemInjection}
 [PROJECT INPUT]
 Title: ${project.title}
 Style: ${project.style}
-Characters: ${JSON.stringify((project.characters || []).map((c: any) => ({ id: c.id, name: c.name, desc: c.clothing, voice_id: c.voice_profile_id })))}
+Characters (FULL DATA - use ALL fields verbatim):
+${JSON.stringify(charactersDetail, null, 2)}
+
 Script Sample: ${project.script.substring(0, 2000)}...
 
 [OUTPUT INSTRUCTION]
 Return a JSON object with these top-level keys:
-- "character_manifests": array of character manifest objects (character_id, visual_dna_full >150 words, voice_profile_id, region, accent_strength, timbre, pitch_range_hz, speech_rate_wpm, emotion_band, voice_dna_tech)
+- "character_manifests": array of character manifest objects with:
+    - character_id (string)
+    - visual_dna_full (string >150 words, comprehensive description combining hair + face + clothing + eye + skin)
+    - voice_profile_id (string)
+    - region (string)
+    - accent_strength (string)
+    - timbre (string)
+    - pitch_range_hz (string)
+    - speech_rate_wpm (number)
+    - emotion_band (string)
+    - voice_dna_tech (string)
+    - eye_details_locked (string - PHASE 1: forensic eye description, e.g. "warm brown almond eyes with double eyelid")
+    - skin_texture_locked (string - PHASE 1: e.g. "smooth light beige, natural pores, minimal makeup")
+    - accessories_locked (string - PHASE 1: every accessory the character ALWAYS wears)
+    - gait_posture_locked (string - PHASE 1: how they walk/stand/hold themselves)
+    - signature_props_locked (string - PHASE 1: props that always appear with them)
+    - identity_negatives (string - PHASE 1: explicit list of "do not change X" rules)
+  IMPORTANT: If user provided values for these fields, use them VERBATIM. If empty, infer from name/role/description.
 - "environment_lock": object with "master_state" containing full EnvironmentMasterState
 - "camera_lock": object with lens_profile, grading_lut, fps, shutter_angle
 - "audio_lock": object with ambient_layer_base, reverb_profile, voice_profile_id, region, accent_strength, timbre, pitch_range_hz, speech_rate_wpm, emotion_band`,
