@@ -1,13 +1,19 @@
 import { MasterManifest, VideoClip } from "./types";
 import { environmentLibrary } from "./environment/environmentLibrary";
 
+/**
+ * Forbidden shortcuts that an LLM might use to "lazy-paste" between clips.
+ * REFINED v2 (June 2026): more precise patterns to avoid conflicts with
+ * legitimate environment constraint language like "no change to geometry"
+ * or "Do not change outfit" (which are the OPPOSITE of laziness).
+ */
 export const FORBIDDEN_TERMS = [
-  "same environment", "same scene", "same character", "same outfit",
-  "same camera", "same lighting", "same as before", "same as above",
-  "like before", "as previously", "repeat the", "keep the same",
-  "unchanged", "identical to", "copy from", "refer to previous",
-  "use previous", "maintain same", "no change", "as in clip",
-  "similar to above", "continue with same", "ignore time memory"
+  "same environment as", "same scene as", "same character as", "same outfit as",
+  "same camera as", "same lighting as", "same as before", "same as above",
+  "like before", "as previously", "repeat the prior", "keep the same as",
+  "identical to clip", "copy from clip", "refer to previous clip",
+  "use previous clip", "maintain same as clip", "as in clip",
+  "similar to above", "continue with same as", "ignore time memory"
 ];
 
 const WORLD_GEN_SPEC = `

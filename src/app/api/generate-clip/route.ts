@@ -62,11 +62,31 @@ Score: 3+ high = 0.8+, 1-2 high = 0.5-0.7, only medium/low = <0.5.`,
         temperature: 0.2,
       },
     });
-    return JSON.parse(critic.text || "{}");
+    const report = JSON.parse(critic.text || "{}");
+    // BUGFIX: Force verdict from drift_score (model sometimes ignores threshold)
+    const score = Math.max(0, Math.min(1, Number(report.drift_score) || 0));
+    report.drift_score = score;
+    if (score >= 0.5) report.verdict = "regenerate_required";
+    else if (score >= 0.3) report.verdict = "warning";
+    else report.verdict = "pass";
+    return report;
   } catch (e) {
     console.warn("Critic check failed (non-fatal):", e);
     return null;
   }
+}
+
+/** BUGFIX: strip nested speaker prefix from dialogue text to prevent "Speaker says: 'Speaker: text'" */
+function cleanDialogueText(text: string, speaker: string): string {
+  if (!text) return "";
+  let clean = text.trim();
+  // Remove "Speaker:" or "Speaker (modifier):" prefix from text
+  const speakerEscaped = speaker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const prefixRegex = new RegExp(`^${speakerEscaped}\\s*(?:\\([^)]+\\))?\\s*:\\s*`, "i");
+  clean = clean.replace(prefixRegex, "");
+  // Strip leading/trailing quotes if present
+  clean = clean.replace(/^["“”']+|["“”']+$/g, "").trim();
+  return clean;
 }
 
 export async function POST(req: NextRequest) {
@@ -77,10 +97,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ clip: { ...targetClip, status: 'failed', errorLog: e.message, final_json_output: null } });
     }
 
+    // === BUGFIX: Detect characters ACTUALLY present in this scene ===
+    // Prevents "phantom character" / ghost rendering when AI feeds all character DNA
+    // even for scenes with only one character.
+    const allCharacters = masterManifest.character_manifests || [];
+    const sceneText = `${targetClip.scriptSegment} ${targetClip.actionSummary}`.toLowerCase();
+    const targetCharId = String(targetClip.characterId || "").toLowerCase();
+
+    const presentCharacters = allCharacters.filter((c: any) => {
+      const id = String(c.character_id || "").toLowerCase();
+      const nameFromId = id.replace(/^char-/, "").replace(/[_-]/g, " ");
+      // Always include the target character
+      if (id === targetCharId) return true;
+      // Include other characters only if their name/id appears in the scene action or dialogue
+      if (id && sceneText.includes(id)) return true;
+      if (nameFromId && sceneText.includes(nameFromId)) return true;
+      return false;
+    });
+
+    const offScreenCharacters = allCharacters.filter((c: any) =>
+      !presentCharacters.find((p: any) => p.character_id === c.character_id)
+    );
+
     const assembledContextJSON = assembleClipPrompt({
       manifest: {
         environment_lock: masterManifest.environment_lock,
-        character_manifests: masterManifest.character_manifests,
+        // Only feed characters actually in scene to prevent ghost rendering
+        character_manifests: presentCharacters,
         outfit_state: "Refer to character_manifests",
         camera_lock: masterManifest.camera_lock,
         audio_lock: masterManifest.audio_lock
@@ -90,11 +133,33 @@ export async function POST(req: NextRequest) {
       dialogue: targetClip.scriptSegment
     });
 
+    // === BUGFIX: Language detection from script ===
+    // Force output language matching script to prevent English drift
+    const vietnamesePattern = /[àáâãèéêìíòóôõùúýăđĩũơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i;
+    const isVietnamese = vietnamesePattern.test(targetClip.scriptSegment);
+    const languageLock = isVietnamese
+      ? "Vietnamese (Tiếng Việt) - ALL action descriptions, dialogue, and prompt text MUST be in Vietnamese. NO English mixing except technical terms like 'medium shot', '85mm', 'fps'."
+      : "English - ALL action descriptions and dialogue MUST be in English.";
+
     const additionalContext = ruleEngine.getClipGenerationContext(targetClip, masterManifest, previousClipContext);
+
+    // BUGFIX: Off-screen character note (don't render them, but acknowledge dialogue source)
+    const offScreenBlock = offScreenCharacters.length > 0
+      ? `\n[OFF-SCREEN CHARACTERS - DO NOT RENDER, DO NOT INCLUDE IN visual_prompt.subjects]
+The following characters are NOT physically in this scene. Their voice may be heard off-camera (V.O.) but they MUST NOT appear visually:
+${offScreenCharacters.map((c: any) => `- ${c.character_id}`).join("\n")}
+CRITICAL: Do not include these in visual_prompt.subjects. Do not describe them visually. They produce no shadow, no reflection, no background figure.\n`
+      : "";
 
     const userPromptContent = `[INPUT CONTEXT JSON]
 ${assembledContextJSON}
 
+[LANGUAGE LOCK]
+Output language: ${languageLock}
+
+[ON-SCREEN CHARACTERS (RENDER THESE ONLY)]
+${presentCharacters.map((c: any) => `- ${c.character_id}`).join("\n") || "- (no characters in scene - environment only)"}
+${offScreenBlock}
 [ADDITIONAL RULES & CONTINUITY]
 ${additionalContext}`;
 
@@ -148,9 +213,12 @@ Return a JSON object with these keys:
 
 [CRITICAL: DIALOGUE FORMAT IN full_flattened_prompt]
 When you write dialogue inside full_flattened_prompt, use COLON FORMAT:
-  CharacterName says: "exact dialogue text"
+  CharacterName says: "exact dialogue text only - NO speaker prefix inside the quotes"
 This format prevents Veo from rendering subtitles in the video.
 DO NOT use formats like "CharacterName: text". Always include 'says:' before the quoted string.
+BAD: Sếp Tuấn says: "Sếp Tuấn: Linh này..." (nested prefix - WRONG)
+GOOD: Sếp Tuấn says: "Linh này, anh muốn em tạo ra..." (clean)
+Also, in visual_prompt.dialogue array, the "text" field MUST contain ONLY the dialogue, never "Speaker: ..." or "(V.O.):" prefixes. Put any modifier like (V.O.) or (thở dài) in a separate context note in action_variant, not inside text.
 
 [CRITICAL: NEGATIVE_PROMPT FIELD]
 The negative_prompt field is MANDATORY. It must explicitly list things that MUST NOT change between clips:
@@ -170,7 +238,21 @@ Include the timestamp_subshots in full_flattened_prompt using this exact format:
 [00:02-00:04] <description>
 [00:04-00:06] <description>
 [00:06-00:08] <description>
-This creates dynamic camera movement instead of one static 8s shot.`,
+This creates dynamic camera movement instead of one static 8s shot.
+
+[CRITICAL BUGFIX: ON-SCREEN CHARACTERS ONLY]
+The [ON-SCREEN CHARACTERS] block in the user prompt lists exactly which characters can appear visually.
+- visual_prompt.subjects MUST contain ONLY these on-screen characters
+- NEVER include off-screen characters' visual DNA in subjects
+- If an off-screen character speaks (V.O.), include their dialogue ONLY in dialogue array, NOT in subjects
+- DO NOT add background figures, shadows, reflections of off-screen characters
+- Single-character scenes must have EXACTLY ONE subject - no phantom second person
+
+[CRITICAL BUGFIX: LANGUAGE LOCK]
+Follow the [LANGUAGE LOCK] directive at the top of the user prompt EXACTLY.
+If the script is in Vietnamese, ALL action_variant, environment descriptions, lighting descriptions, and dialogue MUST be in Vietnamese.
+Technical camera terms (medium shot, 50mm, fps, 4200K) may stay in English/numbers, but everything else stays in the script's language.
+NEVER auto-translate dialogue to English.`,
         responseMimeType: "application/json",
         maxOutputTokens: 16384,
       }
@@ -181,6 +263,44 @@ This creates dynamic camera movement instead of one static 8s shot.`,
 
     if (!result || !result.visual_prompt) {
       return NextResponse.json({ clip: { ...targetClip, status: "failed", errorLog: "Invalid JSON response", final_json_output: null } });
+    }
+
+    // BUGFIX: Filter visual_prompt.subjects to only ON-SCREEN characters
+    // Prevents Veo from rendering a "ghost" of the off-screen character
+    if (Array.isArray(result.visual_prompt.subjects) && presentCharacters.length > 0) {
+      const presentIds = new Set(presentCharacters.map((c: any) => String(c.character_id).toLowerCase()));
+      result.visual_prompt.subjects = result.visual_prompt.subjects.filter((s: any) =>
+        presentIds.has(String(s.character_id || "").toLowerCase())
+      );
+      // If model dropped all subjects, fall back to forcing present characters back in
+      if (result.visual_prompt.subjects.length === 0) {
+        result.visual_prompt.subjects = presentCharacters.map((c: any) => ({
+          character_id: c.character_id,
+          visual_dna_full: c.visual_dna_full,
+          eye_details: c.eye_details_locked,
+          skin_texture: c.skin_texture_locked,
+          accessories: c.accessories_locked,
+          gait_posture: c.gait_posture_locked,
+          signature_props: c.signature_props_locked,
+        }));
+      }
+    }
+
+    // BUGFIX: clean nested "Speaker says: 'Speaker: text'" in AI-generated flattened prompt
+    if (result.visual_prompt.full_flattened_prompt) {
+      result.visual_prompt.full_flattened_prompt = result.visual_prompt.full_flattened_prompt
+        // Speaker says: "Speaker: text"  ->  Speaker says: "text"
+        .replace(/(\w+(?:\s\w+)?)\s+says:\s*"\s*\1\s*(?:\([^)]+\))?\s*:\s*/gi, '$1 says: "')
+        // Speaker says: ""Speaker: text""  ->  Speaker says: "text"
+        .replace(/(\w+(?:\s\w+)?)\s+says:\s*""\s*\1\s*:\s*([^"]+?)""/gi, '$1 says: "$2"');
+    }
+
+    // Clean nested prefixes in dialogue.text array too
+    if (Array.isArray(result.visual_prompt.dialogue)) {
+      result.visual_prompt.dialogue = result.visual_prompt.dialogue.map((d: any) => ({
+        ...d,
+        text: cleanDialogueText(d.text || "", d.speaker || ""),
+      }));
     }
 
     // PHASE 1+2: Build flattened prompt with COLON DIALOGUE + forensic DNA + timestamps + scene bible
@@ -199,9 +319,10 @@ This creates dynamic camera movement instead of one static 8s shot.`,
         return parts.join('. ');
       }).join(' | ') || '';
 
-      const dialogueStr = (vp.dialogue || []).map((d: any) =>
-        `${d.speaker} says: "${d.text}"`
-      ).join(' ');
+      const dialogueStr = (vp.dialogue || []).map((d: any) => {
+        const cleanText = cleanDialogueText(d.text || "", d.speaker || "");
+        return `${d.speaker} says: "${cleanText}"`;
+      }).join(' ');
 
       // PHASE 2: Format timestamp sub-shots
       const subshotsStr = (vp.timestamp_subshots || []).map((s: any) =>

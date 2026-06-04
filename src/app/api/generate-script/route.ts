@@ -203,6 +203,15 @@ async function generateScenesBatch(
     ? "Output dialogue trong tiếng Việt tự nhiên, sống động."
     : "Output dialogue in natural, vivid English.";
 
+  // BUGFIX: List the EXACT props/accessories from Story Bible to lock against drift
+  const propLock = bible.characters.map(c => {
+    const items: string[] = [];
+    if ((c as any).accessories) items.push(`accessories: ${(c as any).accessories}`);
+    if ((c as any).signature_props) items.push(`signature props: ${(c as any).signature_props}`);
+    if (c.clothing) items.push(`outfit: ${c.clothing}`);
+    return `${c.name}: ${items.join(' | ')}`;
+  }).join('\n');
+
   const system = `You are a dialogue writer + visual director.
 Write scenes ${startScene}-${endScene} of ${totalScenes} for an 8s-per-clip video.
 ${langInstruction}
@@ -210,6 +219,12 @@ ${langInstruction}
 ABSOLUTE RULES:
 - Each scene = EXACTLY 8 seconds
 - Max 25 words dialogue per scene (fits 8s)
+- BUGFIX: NEVER introduce new props, accessories, jewelry, or outfit items not listed below in [CHARACTER PROP LOCK]
+- If a character is OFF-SCREEN (e.g., voice on phone, V.O.), explicitly note "off-screen" in action
+- Dialogue text MUST NOT contain speaker prefix. Write text without "CharacterName:" before it.
+
+[CHARACTER PROP LOCK - do not invent additional items]
+${propLock}
 - Action description: vivid, specific, references character ID and location
 - Character voice must match their character_id voice profile
 - NO repetition with prior scenes (already written)
