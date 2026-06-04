@@ -118,6 +118,26 @@ Return a JSON object with these top-level keys:
       ? data.scene_bible_tokens.filter((t: any) => typeof t === "string" && t.length > 0 && t.length < 200)
       : [];
 
+    // VOICE FIX: Enforce gender-appropriate pitch ranges to prevent voice swap
+    for (const cm of characterManifests) {
+      const proj = (project.characters || []).find((p: any) => p.id === cm.character_id || p.name === cm.character_id);
+      const gender = proj?.gender || (cm.character_id?.includes("female") || cm.character_id?.includes("nu") ? "female" : "male");
+      // Force pitch range if missing or gender-mismatched
+      const isFemalePitch = /1[8-9]\d|2\d\d|3\d\d/.test(cm.pitch_range_hz || "");
+      const isMalePitch = /[5-9]\d-1[3-5]\d|^1[0-4]\d/.test(cm.pitch_range_hz || "");
+      if (gender === "female" && !isFemalePitch) {
+        cm.pitch_range_hz = "180-260 Hz";
+      } else if (gender === "male" && !isMalePitch) {
+        cm.pitch_range_hz = "100-140 Hz";
+      }
+      // Mark voice_dna_tech with gender for downstream binding
+      if (!cm.voice_dna_tech || cm.voice_dna_tech.length < 10) {
+        cm.voice_dna_tech = gender === "female"
+          ? "feminine resonance, soft head voice, smooth vibrato"
+          : "masculine chest resonance, firm baritone, low formant";
+      }
+    }
+
     // Fallback: derive tokens from camera_lock + audio_lock if none generated
     if (sceneBibleTokens.length === 0 && data.camera_lock) {
       const cam = data.camera_lock;

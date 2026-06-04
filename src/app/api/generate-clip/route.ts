@@ -55,8 +55,17 @@ Return JSON: {drift_score (0-1), issues[{category, severity, description, sugges
       config: {
         systemInstruction: `You are a strict CONTINUITY SUPERVISOR. Audit the generated prompt against the manifest locks.
 Detect drift in: character (hair/eyes/outfit/accessories), environment, lighting, camera, scene_bible_tokens (must appear verbatim).
+
+CRITICAL VOICE-SWAP DETECTION (highest priority):
+- Check every dialogue line has visual_descriptor and voice_fingerprint
+- Verify the descriptor matches the speaker's actual gender + appearance from manifest
+- Flag as HIGH severity if: male character has female-pitch voice (or vice versa)
+- Flag as HIGH severity if: dialogue speaker doesn't have face visible in matching timestamp_subshot
+- Flag as HIGH severity if: off-screen character is somehow rendered as visible
+
 Severity: high (viewer notices), medium (close inspection), low (cosmetic).
-Score: 3+ high = 0.8+, 1-2 high = 0.5-0.7, only medium/low = <0.5.`,
+Score: 3+ high = 0.8+, 1-2 high = 0.5-0.7, only medium/low = <0.5.
+Voice swap alone = automatic 0.7+ score.`,
         responseMimeType: "application/json",
         maxOutputTokens: 4096,
         temperature: 0.2,
@@ -151,6 +160,53 @@ ${offScreenCharacters.map((c: any) => `- ${c.character_id}`).join("\n")}
 CRITICAL: Do not include these in visual_prompt.subjects. Do not describe them visually. They produce no shadow, no reflection, no background figure.\n`
       : "";
 
+    // === VOICE FIX: Build Voice Profile Cards for active speakers ===
+    // Per Veo 3 community research (glbgpt.com, skywork.ai): dialogue should be
+    // tagged with VISUAL DESCRIPTOR of the speaker, not just name. This lets Veo
+    // correctly assign voice to the right character.
+    const buildSpeakerDescriptor = (c: any): string => {
+      const gender = c.gender === "female" ? "woman" : "man";
+      const ageHint = c.age_group ? `${c.age_group}-year-old` : "";
+      const hairDesc = c.hair || c.hair_dna || "";
+      const outfit = c.clothing || "";
+      const distinguishing: string[] = [];
+      if (hairDesc) distinguishing.push(hairDesc);
+      if (outfit) distinguishing.push(`in ${outfit}`);
+      return `the ${ageHint} ${gender} ${distinguishing.join(", ")}`.replace(/\s+/g, " ").trim();
+    };
+
+    // Get full character data (not just manifest) for descriptors
+    const projChars = project.characters || [];
+    const allCharsWithProj = allCharacters.map((m: any) => {
+      const proj = projChars.find((p: any) => p.id === m.character_id || p.name === m.character_id);
+      return { ...m, ...(proj || {}) };
+    });
+
+    const voiceProfileBlock = allCharsWithProj.length > 0
+      ? `\n[VOICE PROFILE ANCHORS - STRICT SPEAKER-TO-VOICE BINDING]
+This is the MOST IMPORTANT block to prevent voice swap. Veo MUST bind these voices to these visual descriptors:
+
+${allCharsWithProj.map((c: any) => {
+  const descriptor = buildSpeakerDescriptor(c);
+  return `▸ Character ID: ${c.character_id}
+  Visual descriptor (use this in dialogue tags): "${descriptor}"
+  Voice timbre: ${c.timbre || c.voice_timbre || "neutral"}
+  Pitch range: ${c.pitch_range_hz || (c.gender === "female" ? "180-260 Hz" : "100-140 Hz")}
+  Accent: ${c.region || ""} ${c.accent_strength || "standard"}
+  Speech rate: ${c.speech_rate_wpm || 140} wpm
+  Emotion band: ${c.emotion_band || "neutral"}`;
+}).join("\n\n")}
+
+[CRITICAL VOICE BINDING RULES]
+1. Each dialogue line MUST start with the visual descriptor, NOT just the character name.
+   BAD:  "Sếp Tuấn says: 'Linh này...'"
+   GOOD: "The man with short black hair in dark business suit says with authoritative deep voice: 'Linh này...'"
+2. The character whose FACE is on-camera during a dialogue line MUST be the one speaking that line.
+3. NEVER let a female character speak with a male voice (or vice versa) - check pitch range strictly.
+4. If a character is off-screen (V.O.), explicitly mark "(off-screen voice, deep male timbre 100-140 Hz)" in dialogue.
+5. Active speaker must have a close-up or medium close-up shot in their dialogue's sub-shot timestamp.\n`
+      : "";
+
     const userPromptContent = `[INPUT CONTEXT JSON]
 ${assembledContextJSON}
 
@@ -159,7 +215,7 @@ Output language: ${languageLock}
 
 [ON-SCREEN CHARACTERS (RENDER THESE ONLY)]
 ${presentCharacters.map((c: any) => `- ${c.character_id}`).join("\n") || "- (no characters in scene - environment only)"}
-${offScreenBlock}
+${offScreenBlock}${voiceProfileBlock}
 [ADDITIONAL RULES & CONTINUITY]
 ${additionalContext}`;
 
@@ -194,15 +250,24 @@ Return a JSON object with these keys:
   - lighting_invariant (string)
   - camera_invariant (string)
   - action_variant (string)
-  - dialogue (array of {speaker, text}) - text MUST be quoted dialogue
+  - dialogue (array of {speaker, text, visual_descriptor, voice_fingerprint}) - VOICE FIX:
+      - speaker: character_id (e.g. "char-sep_tuan")
+      - text: ONLY the dialogue words, no speaker prefix
+      - visual_descriptor: REQUIRED - exact descriptor from [VOICE PROFILE ANCHORS] block
+        e.g. "the middle-aged Vietnamese man with short black hair in dark business suit"
+      - voice_fingerprint: REQUIRED - timbre + pitch range + accent
+        e.g. "medium_deep_authoritative, 100-140 Hz, Northern Vietnamese standard"
+      These fields force Veo to bind the right voice to the right face.
   - technical (object)
   - negative_prompt (string) - PHASE 1: explicit negatives for Veo
-  - timestamp_subshots (array) - PHASE 2: 4 sub-shots within 8s clip, each {time, description, sfx?}
+  - timestamp_subshots (array) - PHASE 2: 4 sub-shots within 8s clip, each {time, description, sfx?, active_speaker_id?}
+      VOICE FIX: include "active_speaker_id" when dialogue happens in this sub-shot.
+      The active speaker's face MUST be on camera (close-up or medium close-up) during their line.
       Example: [
-        {"time": "00:00-00:02", "description": "Medium shot from behind Sarah as she pushes vine aside revealing path", "sfx": "rustling leaves"},
-        {"time": "00:02-00:04", "description": "Reverse close-up on Sarah's freckled face, awe-struck expression", "sfx": "distant bird calls"},
-        {"time": "00:04-00:06", "description": "Tracking shot following Sarah stepping into clearing, touching stone carvings"},
-        {"time": "00:06-00:08", "description": "Wide high-angle crane shot, Sarah small in vast temple complex"}
+        {"time": "00:00-00:02", "description": "Medium close-up on the man with short black hair in suit at his desk", "active_speaker_id": "char-sep_tuan"},
+        {"time": "00:02-00:04", "description": "Same medium close-up on the man in suit, mouth moving as he speaks", "active_speaker_id": "char-sep_tuan"},
+        {"time": "00:04-00:06", "description": "Cut to medium close-up on the young woman with long black hair, reaction", "active_speaker_id": null},
+        {"time": "00:06-00:08", "description": "Same shot on the woman, she begins replying", "active_speaker_id": "char-linh_nhan_vien"}
       ]
       Per Google official Veo 3.1 guide: timestamp prompting creates dynamic, cinematic 8s clips.
       Each sub-shot ~2s. Adjust shots to match action_variant pacing.
@@ -252,7 +317,27 @@ The [ON-SCREEN CHARACTERS] block in the user prompt lists exactly which characte
 Follow the [LANGUAGE LOCK] directive at the top of the user prompt EXACTLY.
 If the script is in Vietnamese, ALL action_variant, environment descriptions, lighting descriptions, and dialogue MUST be in Vietnamese.
 Technical camera terms (medium shot, 50mm, fps, 4200K) may stay in English/numbers, but everything else stays in the script's language.
-NEVER auto-translate dialogue to English.`,
+NEVER auto-translate dialogue to English.
+
+[CRITICAL VOICE FIX: SPEAKER-VOICE BINDING]
+The [VOICE PROFILE ANCHORS] block at the top of user prompt is the ULTIMATE authority for voice assignment.
+For EVERY dialogue line you generate:
+1. Determine WHO is speaking (use character_id)
+2. Copy their visual descriptor and voice fingerprint from [VOICE PROFILE ANCHORS]
+3. Put visual descriptor in dialogue[].visual_descriptor field
+4. Put voice fingerprint in dialogue[].voice_fingerprint field
+5. In full_flattened_prompt, format as: "<visual_descriptor> (voice: <voice_fingerprint>) says: \\"<text>\\""
+6. In timestamp_subshots, mark active_speaker_id for the sub-shot containing the dialogue
+7. The active speaker's FACE MUST be in close-up or medium close-up during their dialogue line
+
+VOICE SWAP IS A CRITICAL FAILURE. If male character speaks with female voice (or vice versa), the entire clip is rejected.
+Pitch ranges: Male typically 100-140 Hz, Female typically 180-260 Hz. Cross-binding is FORBIDDEN.
+
+[CRITICAL: SINGLE-SPEAKER PREFERENCE]
+If the scene has multiple characters but only ONE speaks, the other character should be:
+- Visible but silent (reaction shot), OR
+- Off-camera entirely
+Multi-speaker overlapping dialogue in 8 seconds causes voice confusion - prefer turn-taking with clear camera cuts between speakers.`,
         responseMimeType: "application/json",
         maxOutputTokens: 16384,
       }
@@ -319,9 +404,15 @@ NEVER auto-translate dialogue to English.`,
         return parts.join('. ');
       }).join(' | ') || '';
 
+      // VOICE FIX: dialogue uses visual descriptor + voice fingerprint (Veo community best practice)
       const dialogueStr = (vp.dialogue || []).map((d: any) => {
         const cleanText = cleanDialogueText(d.text || "", d.speaker || "");
-        return `${d.speaker} says: "${cleanText}"`;
+        const descriptor = d.visual_descriptor
+          || allCharsWithProj.find((c: any) => c.character_id === d.speaker)
+            ? buildSpeakerDescriptor(allCharsWithProj.find((c: any) => c.character_id === d.speaker) || {})
+            : (d.speaker || "the character");
+        const voiceFp = d.voice_fingerprint ? ` (voice: ${d.voice_fingerprint})` : "";
+        return `${descriptor}${voiceFp} says: "${cleanText}"`;
       }).join(' ');
 
       // PHASE 2: Format timestamp sub-shots
@@ -350,9 +441,14 @@ NEVER auto-translate dialogue to English.`,
       }
     }
 
-    // PHASE 1: Extract negative prompt for Veo
-    const negativePrompt = result.visual_prompt.negative_prompt
-      || "no text overlays, no watermarks, no subtitles, no cartoon effects, no extra fingers, no blurry faces, do not alter hair, do not change outfit, do not remove accessories, no facial hair changes, no random props";
+    // PHASE 1 + VOICE FIX: Negative prompt includes anti-voice-swap directives
+    const voiceSwapNegatives = allCharsWithProj.length > 1
+      ? " do not swap character voices, do not let male character speak with female voice, do not let female character speak with male voice, off-screen character must not borrow on-screen character's voice, each speaker's pitch must match their voice profile,"
+      : "";
+
+    const negativePrompt = (result.visual_prompt.negative_prompt
+      || "")
+      + ` no text overlays, no watermarks, no subtitles, no cartoon effects, no extra fingers, no blurry faces, do not alter hair, do not change outfit, do not remove accessories, no facial hair changes, no random props,${voiceSwapNegatives}`;
 
     // PHASE 3: Run VLM critic feedback loop
     let criticReport: any = null;

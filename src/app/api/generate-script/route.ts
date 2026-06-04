@@ -222,6 +222,9 @@ ABSOLUTE RULES:
 - BUGFIX: NEVER introduce new props, accessories, jewelry, or outfit items not listed below in [CHARACTER PROP LOCK]
 - If a character is OFF-SCREEN (e.g., voice on phone, V.O.), explicitly note "off-screen" in action
 - Dialogue text MUST NOT contain speaker prefix. Write text without "CharacterName:" before it.
+- VOICE FIX: For each scene with dialogue, identify ONE primary speaker. Avoid 2 characters speaking in same 8s clip.
+- VOICE FIX: If multi-speaker is essential, use clear TURN-TAKING with camera cuts: "Character A speaks (close-up), then character B replies (close-up)" - never overlapping dialogue.
+- VOICE FIX: When a character speaks, their face MUST be on camera in close-up or medium close-up.
 
 [CHARACTER PROP LOCK - do not invent additional items]
 ${propLock}

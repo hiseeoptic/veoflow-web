@@ -177,6 +177,18 @@ export interface TimestampSubshot {
   description: string;
   /** Optional SFX cue */
   sfx?: string;
+  /** VOICE FIX: which character speaks during this sub-shot (null if no dialogue) */
+  active_speaker_id?: string | null;
+}
+
+/** VOICE FIX: Dialogue line with speaker-to-voice binding metadata */
+export interface DialogueLine {
+  speaker: string;
+  text: string;
+  /** Visual descriptor of speaker (e.g., "the woman in red jacket") - prevents voice swap */
+  visual_descriptor?: string;
+  /** Voice fingerprint: timbre + pitch + accent */
+  voice_fingerprint?: string;
 }
 
 /** PHASE 3: VLM Critic feedback on a generated clip prompt */
