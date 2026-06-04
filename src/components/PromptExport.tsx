@@ -195,9 +195,10 @@ export default function PromptExport({ project, onUpdate }: Props) {
     setClipVideoState(clip.id, { status: "queued" });
 
     try {
-      // PHASE 1: Find character reference image for I2V
+      // PHASE 1+3: Find character reference image for I2V
+      // Phase 3 priority: masterFrameBase64 (green screen) > imageBase64 (user upload)
       const character = project.characters.find(c => c.id === clip.characterId);
-      const referenceImage = character?.imageBase64;
+      const referenceImage = character?.masterFrameBase64 || character?.imageBase64;
 
       // PHASE 2: Frame chaining - prefer previous clip's last frame over character image
       let firstFrameImage = firstFrameOverride;

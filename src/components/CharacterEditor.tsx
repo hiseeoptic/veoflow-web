@@ -13,6 +13,35 @@ export default function CharacterEditor({ project, onUpdate }: Props) {
   );
   const [isSyncing, setIsSyncing] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [generatingMasterFor, setGeneratingMasterFor] = useState<string | null>(null);
+
+  const generateMasterFrame = async (char: Character) => {
+    setGeneratingMasterFor(char.id);
+    try {
+      const res = await fetch("/api/generate-master-frame", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          character: char,
+          referenceImageBase64: char.imageBase64 || null,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      onUpdate({
+        characters: project.characters.map(c =>
+          c.id === char.id
+            ? { ...c, masterFrameBase64: data.masterFrameBase64, masterFrameGeneratedAt: data.generatedAt }
+            : c
+        ),
+      });
+    } catch (e: any) {
+      alert("Master frame generation failed: " + e.message);
+    } finally {
+      setGeneratingMasterFor(null);
+    }
+  };
 
   const handleImageUpload = (charId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -60,6 +89,9 @@ export default function CharacterEditor({ project, onUpdate }: Props) {
         accessories: existing?.accessories,
         gait_posture: existing?.gait_posture,
         signature_props: existing?.signature_props,
+        // Phase 3: preserve master frame
+        masterFrameBase64: existing?.masterFrameBase64,
+        masterFrameGeneratedAt: existing?.masterFrameGeneratedAt,
       };
     });
 
@@ -151,7 +183,9 @@ export default function CharacterEditor({ project, onUpdate }: Props) {
                   <div className="p-4 sm:p-6 flex items-center gap-4 sm:gap-6">
                     <div className="relative shrink-0">
                       <div className="w-16 h-16 sm:w-24 sm:h-24 bg-black rounded-xl sm:rounded-2xl border border-white/10 flex items-center justify-center overflow-hidden">
-                        {char.imageBase64 ? (
+                        {char.masterFrameBase64 ? (
+                          <img src={char.masterFrameBase64} className="w-full h-full object-cover" alt={char.name} title="Master Frame (Green Screen)" />
+                        ) : char.imageBase64 ? (
                           <img src={char.imageBase64} className="w-full h-full object-cover" alt={char.name} />
                         ) : (
                           <span className="text-zinc-700 text-2xl sm:text-3xl font-black">{char.name.charAt(0)}</span>
@@ -176,9 +210,14 @@ export default function CharacterEditor({ project, onUpdate }: Props) {
                         }`}>
                           DNA {dnaCompleteness}/5
                         </span>
-                        {char.imageBase64 && (
+                        {char.imageBase64 && !char.masterFrameBase64 && (
                           <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-indigo-900/40 text-indigo-400">
                             I2V READY
+                          </span>
+                        )}
+                        {char.masterFrameBase64 && (
+                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-green-900/40 text-green-400" title="Green-screen master frame active">
+                            🟢 MASTER FRAME
                           </span>
                         )}
                       </div>
@@ -243,6 +282,59 @@ export default function CharacterEditor({ project, onUpdate }: Props) {
                       <p className="text-[10px] text-zinc-600 italic pt-2">
                         Tip: The more specific, the less Veo will drift these features across clips.
                       </p>
+
+                      {/* PHASE 3: Green Screen Master Frame */}
+                      <div className="pt-4 mt-3 border-t border-emerald-500/10">
+                        <p className="text-[10px] font-black text-green-400 uppercase tracking-widest mb-2">
+                          🟢 Green Screen Master Frame (Phase 3)
+                        </p>
+                        <p className="text-[10px] text-zinc-500 mb-3 leading-relaxed">
+                          AI-generates a portrait on plain green background. Becomes the universal identity anchor for I2V across ALL scenes — highest consistency for long videos.
+                        </p>
+
+                        <div className="flex gap-3 items-start">
+                          {char.masterFrameBase64 && (
+                            <div className="shrink-0">
+                              <img
+                                src={char.masterFrameBase64}
+                                alt="Master Frame"
+                                className="w-20 h-20 object-cover rounded-xl border border-green-500/40"
+                              />
+                              <p className="text-[9px] text-green-400 font-mono mt-1 text-center">ACTIVE</p>
+                            </div>
+                          )}
+
+                          <div className="flex-1 space-y-2">
+                            <button
+                              onClick={() => generateMasterFrame(char)}
+                              disabled={generatingMasterFor === char.id}
+                              className={`w-full py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
+                                generatingMasterFor === char.id
+                                  ? "bg-zinc-800 text-zinc-500 cursor-wait"
+                                  : char.masterFrameBase64
+                                  ? "bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
+                                  : "bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-600/20"
+                              }`}
+                            >
+                              {generatingMasterFor === char.id
+                                ? "GENERATING (10-30s)..."
+                                : char.masterFrameBase64
+                                ? "🔄 Regenerate Master Frame"
+                                : "✨ Generate Master Frame"}
+                            </button>
+                            {char.masterFrameGeneratedAt && (
+                              <p className="text-[9px] text-zinc-600 font-mono">
+                                Generated: {new Date(char.masterFrameGeneratedAt).toLocaleString()}
+                              </p>
+                            )}
+                            {!char.imageBase64 && (
+                              <p className="text-[10px] text-yellow-500 italic">
+                                Optional: upload a reference photo first for best results
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

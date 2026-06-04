@@ -22,6 +22,17 @@ export interface Character {
   gait_posture?: string;
   /** Props that ALWAYS appear with this character e.g., "brown leather satchel, fountain pen, notebook" */
   signature_props?: string;
+
+  // === PHASE 3: Green Screen Master Frame ===
+  /**
+   * AI-generated portrait of this character on PLAIN GREEN background.
+   * Used as the universal identity anchor for I2V across ALL scenes.
+   * Per Veo 3 best practice: a single master frame composited into different
+   * scenes yields the highest character consistency over long videos.
+   */
+  masterFrameBase64?: string;
+  /** Timestamp when master frame was generated (for cache invalidation) */
+  masterFrameGeneratedAt?: number;
 }
 
 export interface CharacterLibraryItem {
@@ -168,6 +179,25 @@ export interface TimestampSubshot {
   sfx?: string;
 }
 
+/** PHASE 3: VLM Critic feedback on a generated clip prompt */
+export interface CriticReport {
+  /** 0 (perfect consistency) - 1 (severe drift) */
+  drift_score: number;
+  /** Specific drift issues found */
+  issues: Array<{
+    category: 'character' | 'environment' | 'lighting' | 'camera' | 'continuity' | 'style';
+    severity: 'low' | 'medium' | 'high';
+    description: string;
+    suggested_fix: string;
+  }>;
+  /** Overall verdict */
+  verdict: 'pass' | 'warning' | 'regenerate_required';
+  /** Stricter prompt to use if regenerating */
+  suggested_correction?: string;
+  /** Iteration count (incremented on each regen) */
+  iteration?: number;
+}
+
 export interface VideoClip {
   id: string;
   sequence: number;
@@ -209,6 +239,8 @@ export interface VideoClip {
   lastFrameBase64?: string;
   /** Phase 2: First frame chained from previous clip */
   firstFrameBase64?: string;
+  /** Phase 3: VLM critic feedback on this clip's prompt */
+  criticReport?: CriticReport;
   videoOperationName?: string;
   videoUri?: string;
   videoStatus?: VideoGenStatus;

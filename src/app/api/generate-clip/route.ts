@@ -16,9 +16,62 @@ async function generateHash(message: string) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+/**
+ * PHASE 3: Run VLM critic agent in-process (avoids extra HTTP round-trip).
+ * Returns null if disabled or on error.
+ */
+async function runCritic(
+  generatedPrompt: any,
+  masterManifest: any,
+  previousClipContext: string | undefined,
+  iteration: number
+): Promise<any | null> {
+  try {
+    const critic = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: `[MASTER MANIFEST LOCKS]
+${JSON.stringify({
+  characters: (masterManifest.character_manifests || []).map((c: any) => ({
+    id: c.character_id,
+    eye: c.eye_details_locked,
+    skin: c.skin_texture_locked,
+    accessories: c.accessories_locked,
+    props: c.signature_props_locked,
+  })),
+  env_class: masterManifest.environment_lock?.master_state?.environment_class,
+  camera: masterManifest.camera_lock,
+  scene_bible_tokens: (masterManifest as any).scene_bible_tokens || [],
+}, null, 2)}
+
+[PREVIOUS CLIP]
+${previousClipContext || "Start of sequence."}
+
+[GENERATED PROMPT TO AUDIT]
+${JSON.stringify(generatedPrompt).substring(0, 6000)}
+
+[ITERATION] ${iteration}/3
+
+Return JSON: {drift_score (0-1), issues[{category, severity, description, suggested_fix}], verdict ("pass"|"warning"|"regenerate_required"), suggested_correction}`,
+      config: {
+        systemInstruction: `You are a strict CONTINUITY SUPERVISOR. Audit the generated prompt against the manifest locks.
+Detect drift in: character (hair/eyes/outfit/accessories), environment, lighting, camera, scene_bible_tokens (must appear verbatim).
+Severity: high (viewer notices), medium (close inspection), low (cosmetic).
+Score: 3+ high = 0.8+, 1-2 high = 0.5-0.7, only medium/low = <0.5.`,
+        responseMimeType: "application/json",
+        maxOutputTokens: 4096,
+        temperature: 0.2,
+      },
+    });
+    return JSON.parse(critic.text || "{}");
+  } catch (e) {
+    console.warn("Critic check failed (non-fatal):", e);
+    return null;
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { project, targetClip, masterManifest, previousClipContext } = await req.json();
+    const { project, targetClip, masterManifest, previousClipContext, enableCritic = true } = await req.json();
 
     try { validateEnvironment(project, targetClip); } catch (e: any) {
       return NextResponse.json({ clip: { ...targetClip, status: 'failed', errorLog: e.message, final_json_output: null } });
@@ -180,12 +233,58 @@ This creates dynamic camera movement instead of one static 8s shot.`,
     const negativePrompt = result.visual_prompt.negative_prompt
       || "no text overlays, no watermarks, no subtitles, no cartoon effects, no extra fingers, no blurry faces, do not alter hair, do not change outfit, do not remove accessories, no facial hair changes, no random props";
 
+    // PHASE 3: Run VLM critic feedback loop
+    let criticReport: any = null;
+    if (enableCritic) {
+      criticReport = await runCritic(result, masterManifest, previousClipContext, 0);
+
+      // Auto-retry once if critic says regenerate_required
+      if (criticReport?.verdict === "regenerate_required" && criticReport?.suggested_correction) {
+        try {
+          const retryPrompt = `${userPromptContent}${sceneBibleBlock}
+
+[CRITIC FEEDBACK - MANDATORY CORRECTIONS]
+The first attempt had drift score ${criticReport.drift_score}. Issues:
+${(criticReport.issues || []).map((i: any) => `- [${i.severity}] ${i.category}: ${i.description} -> FIX: ${i.suggested_fix}`).join("\n")}
+
+REQUIRED CORRECTION: ${criticReport.suggested_correction}
+
+Regenerate the visual_prompt JSON with these corrections applied STRICTLY.`;
+
+          const retry = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: retryPrompt,
+            config: {
+              systemInstruction: systemInstruction,
+              responseMimeType: "application/json",
+              maxOutputTokens: 16384,
+              temperature: 0.4,
+            },
+          });
+          const retryResult = JSON.parse(retry.text || "{}");
+          if (retryResult?.visual_prompt) {
+            Object.assign(result, retryResult);
+            // Re-run critic on the corrected version
+            const recheck = await runCritic(result, masterManifest, previousClipContext, 1);
+            if (recheck) criticReport = recheck;
+            // Rebuild flattened from corrected result
+            if (result.visual_prompt.full_flattened_prompt) {
+              flattened = result.visual_prompt.full_flattened_prompt;
+            }
+          }
+        } catch (retryErr) {
+          console.warn("Critic-driven retry failed:", retryErr);
+        }
+      }
+    }
+
     const updatedClip = {
       ...targetClip,
       status: 'completed',
       flattenedPrompt: flattened,
       negativePrompt,
-      final_json_output: result
+      final_json_output: result,
+      criticReport: criticReport || undefined,
     };
 
     if (result.visual_prompt.environment_invariant) {

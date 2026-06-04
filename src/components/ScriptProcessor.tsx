@@ -371,6 +371,21 @@ export default function ScriptProcessor({ project, onUpdate }: Props) {
                                 {isFailed ? "FAIL" : jsonReady ? "PASS" : "..."}
                               </span>
                               {clip.characterId && <span className="text-[9px] font-bold text-zinc-500 uppercase hidden sm:inline">{clip.characterId}</span>}
+                              {/* PHASE 3: Critic Drift Badge */}
+                              {clip.criticReport && (
+                                <span
+                                  className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${
+                                    clip.criticReport.verdict === "pass"
+                                      ? "text-emerald-400 bg-emerald-900/30"
+                                      : clip.criticReport.verdict === "warning"
+                                      ? "text-yellow-400 bg-yellow-900/30"
+                                      : "text-red-400 bg-red-900/30"
+                                  }`}
+                                  title={`Critic: ${clip.criticReport.issues?.length || 0} issues, iter ${clip.criticReport.iteration || 1}`}
+                                >
+                                  🔍 DRIFT {(clip.criticReport.drift_score * 100).toFixed(0)}%
+                                </span>
+                              )}
                             </div>
                             <p className="text-xs sm:text-sm text-zinc-300 truncate font-medium">&quot;{clip.scriptSegment}&quot;</p>
                             {isFailed && <p className="text-[10px] text-red-400 font-mono mt-1 truncate">{clip.errorLog}</p>}
@@ -415,6 +430,37 @@ export default function ScriptProcessor({ project, onUpdate }: Props) {
                                 {clip.flattenedPrompt}
                               </p>
                             </div>
+                            {/* PHASE 3: Critic Report Detail */}
+                            {clip.criticReport && (
+                              <div>
+                                <span className={`text-[9px] font-bold uppercase block mb-2 ${
+                                  clip.criticReport.verdict === "pass" ? "text-emerald-400" :
+                                  clip.criticReport.verdict === "warning" ? "text-yellow-400" : "text-red-400"
+                                }`}>
+                                  🔍 VLM Critic Report — Drift {(clip.criticReport.drift_score * 100).toFixed(0)}% · {clip.criticReport.verdict.toUpperCase()}
+                                </span>
+                                {clip.criticReport.issues && clip.criticReport.issues.length > 0 ? (
+                                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                                    {clip.criticReport.issues.map((issue, i) => (
+                                      <div key={i} className="text-[10px] bg-black/40 rounded-lg p-2.5 border-l-2 border-zinc-700">
+                                        <div className="flex gap-2 items-start">
+                                          <span className={`font-black uppercase shrink-0 text-[9px] px-1.5 py-0.5 rounded ${
+                                            issue.severity === "high" ? "bg-red-900/40 text-red-400" :
+                                            issue.severity === "medium" ? "bg-yellow-900/40 text-yellow-400" :
+                                            "bg-zinc-800 text-zinc-500"
+                                          }`}>{issue.severity}</span>
+                                          <span className="text-zinc-500 font-bold uppercase text-[9px]">{issue.category}</span>
+                                        </div>
+                                        <p className="text-zinc-400 mt-1.5">{issue.description}</p>
+                                        <p className="text-emerald-500 mt-1 italic">↳ Fix: {issue.suggested_fix}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-[10px] text-emerald-500 italic">No drift detected. Clip passes all consistency checks.</p>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}

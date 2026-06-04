@@ -43,6 +43,10 @@ const VEO_CODEX_CORE = `
 - The camera feels, it does not just watch.
 - Maintain lens continuity (e.g., 35mm vs 85mm) unless emotion shifts.
 - Horizon lock: Pitch constraints min -3, max +3 degrees.
+- PHASE 3 CAMERA MARKER: After describing camera position, ALWAYS append "(thats where the camera is)" exactly.
+  Example: "Medium shot from behind the doorway (thats where the camera is), looking into the kitchen."
+  Example: "Low angle from beside the chair (thats where the camera is), tilted up at the speaker."
+  This community-validated marker triggers Veo's camera-aware processing and yields better composition.
 
 [PART V: VARIATION RULES]
 - Constant Identity Rule: Visual identity immutable.
@@ -52,6 +56,7 @@ const VEO_CODEX_CORE = `
 [PART XV: DIALOGUE & SUBTEXT]
 - Dialogue must fit within the 8s shot.
 - Subtext Encoding: Every line carries literal content AND emotional contradiction.
+- DIALOGUE FORMAT (Phase 1): Always "Speaker says: \\"text\\"" to prevent visible subtitles.
 `;
 
 export interface RuleEngineType {
