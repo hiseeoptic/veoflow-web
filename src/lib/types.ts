@@ -33,6 +33,20 @@ export interface Character {
   masterFrameBase64?: string;
   /** Timestamp when master frame was generated (for cache invalidation) */
   masterFrameGeneratedAt?: number;
+
+  // === USER PREFERENCE: Veo Reference Toggle ===
+  /**
+   * Whether this character's image (master frame OR uploaded photo) should be
+   * passed to Veo as the I2V reference seed when this character is the primary
+   * speaker of a clip.
+   *
+   * Default: true if any image is available, false otherwise.
+   *
+   * IMPORTANT: Veo API only accepts ONE reference image per video generation.
+   * If a clip has multiple characters, only the primary speaker's image is used.
+   * Toggle this OFF to fall back to pure text-to-video for this character.
+   */
+  useAsVeoReference?: boolean;
 }
 
 export interface CharacterLibraryItem {

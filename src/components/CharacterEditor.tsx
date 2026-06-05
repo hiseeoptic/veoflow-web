@@ -49,14 +49,23 @@ export default function CharacterEditor({ project, onUpdate }: Props) {
       const reader = new FileReader();
       reader.onloadend = () => {
         onUpdate({
-          characters: project.characters.map(c => c.id === charId ? { ...c, imageBase64: reader.result as string } : c)
+          characters: project.characters.map(c =>
+            c.id === charId
+              ? {
+                  ...c,
+                  imageBase64: reader.result as string,
+                  // Auto-enable Veo reference when user uploads (unless they explicitly disabled it before)
+                  useAsVeoReference: c.useAsVeoReference !== false ? true : false,
+                }
+              : c
+          )
         });
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const updateCharacterField = (charId: string, field: keyof Character, value: string) => {
+  const updateCharacterField = (charId: string, field: keyof Character, value: string | boolean) => {
     onUpdate({
       characters: project.characters.map(c =>
         c.id === charId ? { ...c, [field]: value } : c
@@ -92,6 +101,8 @@ export default function CharacterEditor({ project, onUpdate }: Props) {
         // Phase 3: preserve master frame
         masterFrameBase64: existing?.masterFrameBase64,
         masterFrameGeneratedAt: existing?.masterFrameGeneratedAt,
+        // Preserve Veo reference toggle
+        useAsVeoReference: existing?.useAsVeoReference,
       };
     });
 
@@ -160,6 +171,33 @@ export default function CharacterEditor({ project, onUpdate }: Props) {
               <li>Dialogue colon-format (no subtitles)</li>
             </ul>
           </div>
+
+          {/* VEO REFERENCE EXPLAINER */}
+          <div className="bg-cyan-950/40 border border-cyan-500/20 rounded-2xl p-4 text-[11px] text-zinc-400">
+            <p className="font-black text-cyan-300 uppercase tracking-widest mb-2 text-[10px]">
+              ☑ VEO REF Toggle - Cách hoạt động
+            </p>
+            <p className="mb-2 leading-relaxed">
+              Veo API <strong className="text-cyan-300">chỉ nhận 1 ảnh reference/clip</strong>.
+              Khi clip có nhân vật nào nói chính, app tự dùng ảnh của nhân vật đó.
+            </p>
+            <ul className="space-y-1 list-disc list-inside text-[10px]">
+              <li><span className="text-cyan-300">ON</span>: Veo dùng ảnh (mặt được khoá chặt) - chế độ I2V</li>
+              <li><span className="text-zinc-500">OFF</span>: Bỏ qua ảnh, chỉ dùng text - chế độ T2V (mặt sẽ random)</li>
+              <li className="text-yellow-400">Tip: Multi-character cùng cảnh → bật cho người chính, tắt cho người phụ</li>
+            </ul>
+          </div>
+
+          {/* Multi-character warning */}
+          {project.characters.filter(c => c.useAsVeoReference !== false && (c.imageBase64 || c.masterFrameBase64)).length > 1 && (
+            <div className="bg-yellow-950/40 border border-yellow-500/30 rounded-2xl p-4 text-[11px] text-yellow-300">
+              <p className="font-black uppercase tracking-widest mb-1 text-[10px]">⚠ Multi-Ref Warning</p>
+              <p className="leading-relaxed">
+                Bạn có <strong>{project.characters.filter(c => c.useAsVeoReference !== false && (c.imageBase64 || c.masterFrameBase64)).length}</strong> nhân vật đã bật VEO REF.
+                Mỗi clip chỉ dùng 1 ảnh (của người nói chính). Các clip có 2 người nói cùng lúc → cần script tách turn-taking để Veo bind voice đúng.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="lg:col-span-7 space-y-4 sm:space-y-6">
@@ -176,6 +214,12 @@ export default function CharacterEditor({ project, onUpdate }: Props) {
                 char.gait_posture,
                 char.signature_props,
               ].filter(Boolean).length;
+
+              const hasAnyImage = !!(char.masterFrameBase64 || char.imageBase64);
+              // Default: ON if image exists, OFF otherwise
+              const useAsVeoRef = char.useAsVeoReference !== undefined
+                ? char.useAsVeoReference
+                : hasAnyImage;
 
               return (
                 <div key={char.id} className="bg-zinc-900/50 border border-white/5 rounded-[20px] sm:rounded-[32px] overflow-hidden hover:border-emerald-500/30 transition-all">
@@ -219,6 +263,22 @@ export default function CharacterEditor({ project, onUpdate }: Props) {
                           <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-green-900/40 text-green-400" title="Green-screen master frame active">
                             🟢 MASTER FRAME
                           </span>
+                        )}
+                        {/* NEW: Veo Reference Toggle Badge */}
+                        {hasAnyImage && (
+                          <button
+                            onClick={() => updateCharacterField(char.id, "useAsVeoReference" as any, (!useAsVeoRef) as any)}
+                            className={`text-[9px] font-black uppercase px-2 py-0.5 rounded transition-all border ${
+                              useAsVeoRef
+                                ? "bg-cyan-900/40 text-cyan-300 border-cyan-500/40 hover:bg-cyan-800/50"
+                                : "bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-300"
+                            }`}
+                            title={useAsVeoRef
+                              ? "Click to DISABLE Veo I2V (use text-to-video instead)"
+                              : "Click to ENABLE Veo I2V (use this image as reference)"}
+                          >
+                            {useAsVeoRef ? "☑ VEO REF" : "☐ VEO REF"}
+                          </button>
                         )}
                       </div>
                       <div className="grid grid-cols-2 gap-2">

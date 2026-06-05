@@ -195,10 +195,17 @@ export default function PromptExport({ project, onUpdate }: Props) {
     setClipVideoState(clip.id, { status: "queued" });
 
     try {
-      // PHASE 1+3: Find character reference image for I2V
-      // Phase 3 priority: masterFrameBase64 (green screen) > imageBase64 (user upload)
+      // PHASE 1+3+USER_TOGGLE: Find character reference image for I2V
+      // Priority: masterFrameBase64 > imageBase64
+      // Only used if character.useAsVeoReference !== false (default true if image exists)
       const character = project.characters.find(c => c.id === clip.characterId);
-      const referenceImage = character?.masterFrameBase64 || character?.imageBase64;
+      const hasImage = !!(character?.masterFrameBase64 || character?.imageBase64);
+      const useRef = character?.useAsVeoReference !== undefined
+        ? character.useAsVeoReference
+        : hasImage; // default ON if image exists
+      const referenceImage = useRef
+        ? (character?.masterFrameBase64 || character?.imageBase64)
+        : undefined;
 
       // PHASE 2: Frame chaining - prefer previous clip's last frame over character image
       let firstFrameImage = firstFrameOverride;
@@ -491,6 +498,17 @@ export default function PromptExport({ project, onUpdate }: Props) {
                         <span className="text-[9px] font-black text-green-400 bg-green-900/20 px-2 py-0.5 rounded uppercase">READY</span>
                         <span className="text-[9px] font-bold text-zinc-500 uppercase hidden sm:inline">{clip.characterId}</span>
                         <span className="text-[9px] font-bold text-zinc-600">8s</span>
+                        {/* Mode indicator: I2V or T2V based on character's useAsVeoReference */}
+                        {(() => {
+                          const ch = project.characters.find(c => c.id === clip.characterId);
+                          const hasImg = !!(ch?.masterFrameBase64 || ch?.imageBase64);
+                          const veoRef = ch?.useAsVeoReference !== undefined ? ch.useAsVeoReference : hasImg;
+                          if (hasImg && veoRef) {
+                            return <span className="text-[9px] font-black text-cyan-300 bg-cyan-900/30 px-2 py-0.5 rounded uppercase" title="Image-to-Video mode: character image used as reference">I2V</span>;
+                          } else {
+                            return <span className="text-[9px] font-black text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded uppercase" title="Text-to-Video mode: no reference image">T2V</span>;
+                          }
+                        })()}
                         {isReady && (
                           <span className="text-[9px] font-black text-indigo-400 bg-indigo-900/20 px-2 py-0.5 rounded uppercase">VIDEO ✓</span>
                         )}
