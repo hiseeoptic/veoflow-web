@@ -38,10 +38,29 @@ export async function POST(req: NextRequest) {
       signature_props: c.signature_props,
     }));
 
+    // PRODUCT MODE: detect product commercial projects
+    const isProductMode = /\[MODE:\s*PRODUCT_COMMERCIAL/i.test(project.script || "")
+      || (project.characters || []).some((c: any) => String(c.id || "").startsWith("product"));
+    const productManifestNote = isProductMode ? `
+
+[PRODUCT COMMERCIAL MODE]
+This project's hero is a PRODUCT (character id starts with "product"). For the product character:
+- visual_dna_full: 150+ word forensic PRODUCT description (container shape/material/size, cap, label layout, logo, typography, finish, light behavior on surface) - copy user fields VERBATIM
+- eye_details_locked = LABEL DNA verbatim
+- skin_texture_locked = SURFACE FINISH (material, reflectivity)
+- accessories_locked = BRAND COLORS verbatim
+- gait_posture_locked = PRODUCT MOTION STYLE (rotation/levitation manner)
+- signature_props_locked = full INGREDIENT list, each with forensic visual description
+- identity_negatives = "no label distortion, no warped label text, no logo changes, no container shape morphing, no extra products, no color shift on brand palette"
+- voice settings = narrator profile (warm, trustworthy)
+environment_lock.master_state should describe ONE studio set: seamless gradient backdrop in brand colors, surface (marble/wood/acrylic), softbox + rim lighting - reused in every clip.
+camera_lock: macro-capable lens (100mm macro or 50mm), low ISO clean image, 24fps; note that VFX scenes may use 120fps slow-mo ramps.
+scene_bible_tokens MUST include: backdrop spec, key+rim lighting spec, container finish spec, brand color hex-like values.` : "";
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: `${generationContext}
-
+${productManifestNote}
 [ECOSYSTEM SOURCE LIBRARY - INJECTED FOR REFERENCE]
 ${ecosystemInjection}
 
@@ -120,6 +139,8 @@ Return a JSON object with these top-level keys:
 
     // VOICE FIX: Enforce gender-appropriate pitch ranges to prevent voice swap
     for (const cm of characterManifests) {
+      // PRODUCT MODE: skip gender-pitch enforcement for product heroes (narrator V.O. instead)
+      if (String(cm.character_id || "").startsWith("product")) continue;
       const proj = (project.characters || []).find((p: any) => p.id === cm.character_id || p.name === cm.character_id);
       const gender = proj?.gender || (cm.character_id?.includes("female") || cm.character_id?.includes("nu") ? "female" : "male");
       // Force pitch range if missing or gender-mismatched

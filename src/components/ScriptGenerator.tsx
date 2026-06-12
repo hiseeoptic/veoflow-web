@@ -6,11 +6,14 @@ import {
   VEO_STYLES,
   SCRIPT_PLATFORMS,
   SCRIPT_TONES,
+  VFX_STYLES,
   ScriptPlatform,
   ScriptTone,
   ScriptLanguage,
+  ScriptMode,
   ScriptGenResult,
   ScriptIdea,
+  ProductIngredient,
 } from "@/lib/types";
 
 interface Props {
@@ -43,6 +46,17 @@ export default function ScriptGenerator({ project, onUpdate, onSwitchView }: Pro
   const [customAngle, setCustomAngle] = useState("");
   const [hookStyle, setHookStyle] = useState<"auto" | "shocking" | "question" | "statement" | "visual">("auto");
 
+  // PRODUCT MODE state
+  const [mode, setMode] = useState<ScriptMode>("narrative");
+  const [productName, setProductName] = useState("");
+  const [productType, setProductType] = useState("");
+  const [containerDna, setContainerDna] = useState("");
+  const [labelDna, setLabelDna] = useState("");
+  const [brandColors, setBrandColors] = useState("");
+  const [ingredientsText, setIngredientsText] = useState("");
+  const [vfxStyle, setVfxStyle] = useState(VFX_STYLES[0].id);
+  const [tagline, setTagline] = useState("");
+
   // Generation state
   const [stage, setStage] = useState<Stage>("idle");
   const [errorMsg, setErrorMsg] = useState("");
@@ -58,8 +72,14 @@ export default function ScriptGenerator({ project, onUpdate, onSwitchView }: Pro
     if (cfg) setDuration(cfg.defaultSec);
   };
 
+  const isProductMode = mode === "product";
+
   const handleGenerate = async () => {
-    if (!idea.trim()) {
+    if (isProductMode && !productName.trim()) {
+      alert(language === "vi" ? "Vui lòng nhập tên sản phẩm." : "Please enter product name.");
+      return;
+    }
+    if (!isProductMode && !idea.trim()) {
       alert("Please enter your video idea first.");
       return;
     }
@@ -67,17 +87,38 @@ export default function ScriptGenerator({ project, onUpdate, onSwitchView }: Pro
     setErrorMsg("");
     setResult(null);
 
+    // PRODUCT MODE: parse ingredients (one per line, "Name | visual description" or just "Name")
+    const ingredients: ProductIngredient[] = ingredientsText
+      .split("\n")
+      .map(l => l.trim())
+      .filter(Boolean)
+      .map(line => {
+        const [name, ...desc] = line.split("|");
+        return { name: name.trim(), visual_description: desc.join("|").trim() };
+      });
+
     const payload: ScriptIdea = {
-      idea: idea.trim(),
+      idea: idea.trim() || (isProductMode ? `Video quảng cáo sản phẩm ${productName.trim()}` : ""),
       platform,
       durationSeconds: duration,
-      tone,
+      tone: isProductMode ? "commercial" : tone,
       audience: audience.trim() || "general audience",
       language,
       style,
-      characterCount,
+      characterCount: isProductMode ? 1 : characterCount,
       customAngle: customAngle.trim() || undefined,
       hookStyle,
+      mode,
+      product: isProductMode ? {
+        product_name: productName.trim(),
+        product_type: productType.trim() || "product",
+        container_dna: containerDna.trim(),
+        label_dna: labelDna.trim(),
+        brand_colors: brandColors.trim(),
+        ingredients,
+        vfx_style: vfxStyle,
+        tagline: tagline.trim() || undefined,
+      } : undefined,
     };
 
     // Stage progress simulation (real progress server-side, we estimate timing)
@@ -159,17 +200,116 @@ export default function ScriptGenerator({ project, onUpdate, onSwitchView }: Pro
         {/* LEFT: Input Form */}
         <div className="lg:col-span-5 space-y-4">
           <div className="bg-zinc-950 border border-white/5 rounded-[24px] p-5 sm:p-6 space-y-4">
-            <h3 className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Your Idea</h3>
+            {/* MODE TOGGLE */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setMode("narrative")}
+                disabled={isGenerating}
+                className={`py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border ${
+                  mode === "narrative"
+                    ? "bg-emerald-600 text-white border-emerald-500 shadow-lg shadow-emerald-600/30"
+                    : "bg-zinc-900 text-zinc-500 border-zinc-800 hover:text-zinc-300"
+                }`}
+              >
+                🎬 Narrative
+              </button>
+              <button
+                onClick={() => setMode("product")}
+                disabled={isGenerating}
+                className={`py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border ${
+                  mode === "product"
+                    ? "bg-amber-600 text-white border-amber-500 shadow-lg shadow-amber-600/30"
+                    : "bg-zinc-900 text-zinc-500 border-zinc-800 hover:text-zinc-300"
+                }`}
+              >
+                📦 Product Ad
+              </button>
+            </div>
+
+            <h3 className={`text-[10px] font-black uppercase tracking-widest ${isProductMode ? "text-amber-400" : "text-emerald-400"}`}>
+              {isProductMode ? "Product Commercial" : "Your Idea"}
+            </h3>
+
+            {/* PRODUCT MODE FIELDS */}
+            {isProductMode && (
+              <div className="space-y-3 border border-amber-500/20 bg-amber-950/20 rounded-2xl p-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5">Tên sản phẩm *</label>
+                    <input type="text" value={productName} onChange={e => setProductName(e.target.value)} disabled={isGenerating}
+                      className="w-full bg-black border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 outline-none focus:border-amber-500/40 disabled:opacity-50"
+                      placeholder="VD: Herbal Boost Plus" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5">Loại sản phẩm</label>
+                    <input type="text" value={productType} onChange={e => setProductType(e.target.value)} disabled={isGenerating}
+                      className="w-full bg-black border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 outline-none focus:border-amber-500/40 disabled:opacity-50"
+                      placeholder="VD: lọ thực phẩm chức năng" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5">Mô tả chai/lọ/bao bì (Container DNA)</label>
+                  <input type="text" value={containerDna} onChange={e => setContainerDna(e.target.value)} disabled={isGenerating}
+                    className="w-full bg-black border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 outline-none focus:border-amber-500/40 disabled:opacity-50"
+                    placeholder="VD: lọ thủy tinh hổ phách 250ml, nắp gỗ tròn, dáng trụ vai cong" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5">Nhãn (Label DNA)</label>
+                    <input type="text" value={labelDna} onChange={e => setLabelDna(e.target.value)} disabled={isGenerating}
+                      className="w-full bg-black border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 outline-none focus:border-amber-500/40 disabled:opacity-50"
+                      placeholder="VD: nhãn kem, logo lá vàng giữa" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5">Màu thương hiệu</label>
+                    <input type="text" value={brandColors} onChange={e => setBrandColors(e.target.value)} disabled={isGenerating}
+                      className="w-full bg-black border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 outline-none focus:border-amber-500/40 disabled:opacity-50"
+                      placeholder="VD: xanh rêu + vàng gold" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5">
+                    Thành phần / Nguyên liệu (mỗi dòng 1 món: Tên | mô tả hình ảnh)
+                  </label>
+                  <textarea value={ingredientsText} onChange={e => setIngredientsText(e.target.value)} rows={4} disabled={isGenerating}
+                    className="w-full bg-black border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 outline-none focus:border-amber-500/40 resize-none disabled:opacity-50"
+                    placeholder={"Kỷ tử | quả khô đỏ cam, bóng, da nhăn\nNhân sâm | củ vàng nhạt, rễ chùm\nĐông trùng hạ thảo | sợi cam đậm, thon dài"} />
+                  <p className="text-[9px] text-zinc-600 mt-1">Mỗi nguyên liệu sẽ có 1 cảnh 8s riêng bay vào sản phẩm</p>
+                </div>
+                <div className="grid grid-cols-1 gap-3">
+                  <div>
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5">Hiệu ứng VFX</label>
+                    <select value={vfxStyle} onChange={e => setVfxStyle(e.target.value)} disabled={isGenerating}
+                      className="w-full bg-black border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 outline-none focus:border-amber-500/40 disabled:opacity-50">
+                      {VFX_STYLES.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5">Tagline (tuỳ chọn)</label>
+                    <input type="text" value={tagline} onChange={e => setTagline(e.target.value)} disabled={isGenerating}
+                      className="w-full bg-black border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 outline-none focus:border-amber-500/40 disabled:opacity-50"
+                      placeholder="VD: Tinh hoa thảo dược, trọn vẹn trong một lọ" />
+                  </div>
+                </div>
+                <p className="text-[9px] text-amber-400/80 italic">
+                  💡 Tip: Sau khi đẩy sang Characters tab, upload ảnh sản phẩm thật + bật VEO REF để Veo khoá đúng hình dáng chai.
+                </p>
+              </div>
+            )}
 
             <div>
-              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2">Video Idea / Concept</label>
+              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2">
+                {isProductMode ? "Concept quảng cáo (tuỳ chọn)" : "Video Idea / Concept"}
+              </label>
               <textarea
                 value={idea}
                 onChange={e => setIdea(e.target.value)}
-                rows={4}
+                rows={isProductMode ? 2 : 4}
                 disabled={isGenerating}
                 className="w-full bg-black border border-zinc-800 rounded-2xl p-4 text-sm text-zinc-200 outline-none focus:border-emerald-500/40 resize-none disabled:opacity-50"
-                placeholder={language === "vi"
+                placeholder={isProductMode
+                  ? (language === "vi" ? "VD: cảm giác thiên nhiên tinh khiết, sang trọng spa..." : "E.g. pure nature feeling, luxury spa vibe...")
+                  : language === "vi"
                   ? "VD: Video về cách AI đang thay đổi ngành y tế qua câu chuyện của một bác sĩ và bệnh nhân của cô ấy..."
                   : "E.g. A video about how AI is changing healthcare through the story of a doctor and her patient..."}
               />
@@ -208,6 +348,11 @@ export default function ScriptGenerator({ project, onUpdate, onSwitchView }: Pro
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2">Tone</label>
+                {isProductMode ? (
+                  <div className="w-full bg-zinc-900 border border-amber-500/30 rounded-xl px-3 py-2.5 text-xs text-amber-400 font-bold">
+                    Commercial (auto)
+                  </div>
+                ) : (
                 <select
                   value={tone}
                   onChange={e => setTone(e.target.value as ScriptTone)}
@@ -216,6 +361,7 @@ export default function ScriptGenerator({ project, onUpdate, onSwitchView }: Pro
                 >
                   {SCRIPT_TONES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                 </select>
+                )}
               </div>
               <div>
                 <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2">Language</label>
@@ -244,16 +390,27 @@ export default function ScriptGenerator({ project, onUpdate, onSwitchView }: Pro
                 </select>
               </div>
               <div>
-                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2">Characters ({characterCount})</label>
-                <input
-                  type="range"
-                  min={1}
-                  max={5}
-                  value={characterCount}
-                  onChange={e => setCharacterCount(parseInt(e.target.value))}
-                  disabled={isGenerating}
-                  className="w-full disabled:opacity-50 accent-emerald-500"
-                />
+                {isProductMode ? (
+                  <>
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2">Hero</label>
+                    <div className="w-full bg-zinc-900 border border-amber-500/30 rounded-xl px-3 py-2.5 text-xs text-amber-400 font-bold">
+                      📦 Product (auto)
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2">Characters ({characterCount})</label>
+                    <input
+                      type="range"
+                      min={1}
+                      max={5}
+                      value={characterCount}
+                      onChange={e => setCharacterCount(parseInt(e.target.value))}
+                      disabled={isGenerating}
+                      className="w-full disabled:opacity-50 accent-emerald-500"
+                    />
+                  </>
+                )}
               </div>
             </div>
 
@@ -310,16 +467,18 @@ export default function ScriptGenerator({ project, onUpdate, onSwitchView }: Pro
             {/* Generate Button */}
             <button
               onClick={handleGenerate}
-              disabled={isGenerating || !idea.trim()}
+              disabled={isGenerating || (isProductMode ? !productName.trim() : !idea.trim())}
               className={`w-full py-4 sm:py-5 rounded-2xl font-black text-xs sm:text-sm uppercase tracking-widest transition-all shadow-2xl ${
                 isGenerating
                   ? "bg-zinc-800 text-zinc-500 cursor-wait"
-                  : !idea.trim()
+                  : (isProductMode ? !productName.trim() : !idea.trim())
                   ? "bg-zinc-900 text-zinc-700 cursor-not-allowed"
+                  : isProductMode
+                  ? "bg-amber-600 hover:bg-amber-500 text-white shadow-amber-600/30 active:scale-[0.98]"
                   : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30 active:scale-[0.98]"
               }`}
             >
-              {isGenerating ? "GENERATING SCRIPT..." : "✨ GENERATE SCRIPT"}
+              {isGenerating ? "GENERATING SCRIPT..." : isProductMode ? "📦 GENERATE COMMERCIAL" : "✨ GENERATE SCRIPT"}
             </button>
 
             {/* Progress */}

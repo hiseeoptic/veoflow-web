@@ -53,6 +53,134 @@ function pickFramework(durationSec: number): "long" | "short" {
   return durationSec >= 90 ? "long" : "short";
 }
 
+// ========== PRODUCT COMMERCIAL MODE ==========
+
+/**
+ * Commercial beat structure based on AIDA + modern 30-90s spot formula.
+ * Sources: classic advertising structure (Attention-Interest-Desire-Action),
+ * PromptVeo3 product-reveal templates, Veo 3 JSON prompting community patterns.
+ */
+const COMMERCIAL_BEAT_FRAMEWORK = `6-beat PRODUCT COMMERCIAL structure (AIDA-based):
+1. HOOK / Tease (0-12%) - Stunning macro detail or intriguing motion. Product NOT fully revealed yet. Pattern interrupt.
+2. DESIRE SETUP (12-25%) - The need/problem visualized OR sensory immersion in ingredient world.
+3. HERO REVEAL (25-40%) - Product appears in full glory. Orbit/rotation shot. Studio lighting.
+4. INGREDIENT SHOWCASE / VFX ASSEMBLY (40-75%) - THE CENTERPIECE. Each ingredient gets its moment:
+   macro texture shots, then ingredients fly/orbit/spiral INTO or AROUND the product container.
+   This is the longest beat - one ingredient per 8s scene for clarity.
+5. BENEFIT / TRANSFORMATION (75-88%) - Result visualized: glow, energy, freshness radiating.
+6. PACK SHOT + CTA (88-100%) - Final hero composition: product centered, label crisp and readable, tagline, logo lockup.`;
+
+/**
+ * VFX choreography vocabulary - injected into product scene generation.
+ * These motion primitives are what Veo 3 renders well for product spots.
+ */
+const VFX_VOCABULARY = `VFX MOTION PRIMITIVES (use these exact terms in actions):
+- ORBIT: camera or objects circle the product in smooth 360° arc, constant radius
+- SPIRAL-IN: ingredients fly in shrinking circular orbit, then enter container opening
+- LEVITATION: product/ingredients float weightlessly, slow gentle bobbing, soft shadows below
+- SLOW-MO DROP: ingredient falls into liquid/container at 120fps ramp, crown splash
+- PARTICLE TRAIL: glowing light particles stream behind moving ingredients
+- MACRO GLIDE: extreme close-up camera glides across ingredient texture (pores, fibers, droplets)
+- BURST: ingredients explode outward from center then REVERSE back into formation
+- ASSEMBLY: separated components fly together and snap into final product composition
+- LIGHT SWEEP: a band of light sweeps across label/product revealing details
+- DOLLY PUSH-IN: camera pushes toward product as background defocuses
+
+LIGHTING FOR PRODUCT SPOTS:
+- Studio softbox key + rim light separating product from backdrop
+- Gradient seamless backdrop (brand color, darker at edges)
+- Specular highlights on glass/container must stay consistent across ALL clips
+- Caustics for glass bottles, subsurface glow for herbal/organic ingredients
+
+CONSISTENCY RULES FOR PRODUCT:
+- Container DNA, label DNA, brand colors repeat VERBATIM in every scene
+- Same backdrop environment across all scenes (only camera + VFX change)
+- Ingredients keep identical visual description every appearance`;
+
+/**
+ * STAGE 1-P: Generate Product Bible.
+ * KEY ARCHITECTURE: the product becomes a "character" (id: product-hero) so the
+ * ENTIRE existing consistency pipeline applies: DNA locks, manifest, critic,
+ * negative prompts, even I2V reference images (user can upload real product photo).
+ */
+async function generateProductBible(idea: ScriptIdea): Promise<StoryBible> {
+  const p = idea.product!;
+  const langInstruction = idea.language === "vi"
+    ? "Output trong tiếng Việt tự nhiên (trừ thuật ngữ kỹ thuật camera/VFX giữ tiếng Anh)."
+    : "Output in natural English.";
+
+  const ingredientList = (p.ingredients || [])
+    .map((i, n) => `${n + 1}. ${i.name}: ${i.visual_description || "(infer vivid forensic description)"}`)
+    .join("\n");
+
+  const system = `You are a senior COMMERCIAL DIRECTOR + product cinematographer.
+Generate a PRODUCT BIBLE for a ${idea.platform} product commercial.
+${langInstruction}
+
+${VFX_VOCABULARY}
+
+CRITICAL: The product is the HERO CHARACTER of this commercial. Its visual DNA must be
+forensic-level locked so it looks IDENTICAL across every clip.`;
+
+  const user = `[PRODUCT INPUT]
+Name: ${p.product_name}
+Type: ${p.product_type}
+Container: ${p.container_dna || "(infer premium container design)"}
+Label: ${p.label_dna || "(infer label design)"}
+Brand colors: ${p.brand_colors || "(infer palette)"}
+VFX style: ${p.vfx_style}
+Tagline: ${p.tagline || "(create one)"}
+Ingredients:
+${ingredientList || "(infer from product type)"}
+
+[CAMPAIGN INPUT]
+Concept: ${idea.idea}
+Platform: ${idea.platform} (${idea.durationSeconds}s)
+Tone: ${idea.tone}
+Audience: ${idea.audience}
+Visual style: ${idea.style}
+
+[OUTPUT JSON SCHEMA]
+{
+  "log_line": "one-sentence commercial concept (max 25 words)",
+  "premise": "2-3 sentences: the commercial's visual journey",
+  "characters": [
+    {
+      "id": "product-hero",
+      "name": "${p.product_name}",
+      "gender": "female",
+      "age_group": "n/a",
+      "hair": "n/a - this is a product",
+      "face_features": "PRODUCT FRONT FACE: exact label layout, logo position, typography description",
+      "clothing": "CONTAINER DNA (locked verbatim): ${p.container_dna || "describe shape, material, cap, proportions, finish"}",
+      "voice_profile_id": "narrator_warm_trustworthy",
+      "voice_timbre": "n/a",
+      "description": "150+ word FULL forensic product description: container shape/material/size, cap, label colors + logo + typography, finish (matte/gloss), how light reflects on it",
+      "eye_details": "LABEL DNA: ${p.label_dna || "describe label artwork verbatim"}",
+      "skin_texture": "SURFACE FINISH: material texture, reflectivity, e.g. amber glass with soft specular highlights",
+      "accessories": "BRAND COLORS (locked): ${p.brand_colors || "describe exact palette"}",
+      "gait_posture": "PRODUCT MOTION STYLE: how it moves in VFX (e.g., slow majestic rotation, gentle levitation)",
+      "signature_props": "INGREDIENTS (each locked): comma-separated list with forensic visual description per ingredient"
+    }
+  ],
+  "locations": [
+    {
+      "location_id": "loc_studio_set",
+      "display_name": "string - the ONE studio set used in ALL scenes",
+      "description": "50+ words: seamless gradient backdrop in brand colors, surface material (marble/wood/glass), lighting setup",
+      "visual_anchors": "softbox key light, rim light, gradient backdrop spec, surface reflections",
+      "archetype_ref": "Interior_HumanScale_SemiEnclosed"
+    }
+  ],
+  "visual_style_note": ">100 words: commercial cinematography style - lens choices, lighting consistency, color grade, VFX style '${p.vfx_style}' described in detail using VFX MOTION PRIMITIVES vocabulary",
+  "emotional_arc": "sensory journey: curiosity -> desire -> wonder (VFX) -> trust -> action",
+  "hook_strategy": "exact first-2-second visual (macro detail or motion tease, product NOT fully shown)",
+  "cta_line": "${p.tagline || "final tagline + call to action"}"
+}`;
+
+  return await jsonCall(system, user, 8192);
+}
+
 async function jsonCall(systemPrompt: string, userPrompt: string, maxTokens = 8192) {
   const response = await ai.models.generateContent({
     model: "gemini-2.5-flash",
@@ -145,19 +273,28 @@ async function generateBeatSheet(
   bible: StoryBible,
   totalScenes: number
 ): Promise<BeatItem[]> {
+  const isProduct = idea.mode === "product";
   const framework = pickFramework(idea.durationSeconds);
-  const beatTemplate = BEAT_FRAMEWORKS[framework];
+  // PRODUCT MODE: always use commercial framework regardless of duration
+  const beatTemplate = isProduct ? COMMERCIAL_BEAT_FRAMEWORK : BEAT_FRAMEWORKS[framework];
 
   const langInstruction = idea.language === "vi"
     ? "Output trong tiếng Việt."
     : "Output in English.";
 
-  const system = `You are a story architect.
-Generate a BEAT SHEET breaking the story into ${totalScenes} scenes (each 8s).
+  const productNote = isProduct
+    ? `\nPRODUCT MODE: This is a COMMERCIAL. The INGREDIENT SHOWCASE / VFX ASSEMBLY beat is the centerpiece -
+allocate ONE scene per ingredient so each gets a full 8s moment (macro intro -> flight into orbit -> entry into container).
+VFX style for the whole spot: ${idea.product?.vfx_style || "orbit_assembly"}.`
+    : "";
+
+  const system = `You are a ${isProduct ? "commercial director" : "story architect"}.
+Generate a BEAT SHEET breaking the ${isProduct ? "commercial" : "story"} into ${totalScenes} scenes (each 8s).
 ${langInstruction}
 
 USE THIS FRAMEWORK:
 ${beatTemplate}
+${productNote}
 
 CRITICAL: Each beat gets specific scene_range. Total = ${totalScenes} scenes.`;
 
@@ -212,9 +349,25 @@ async function generateScenesBatch(
     return `${c.name}: ${items.join(' | ')}`;
   }).join('\n');
 
-  const system = `You are a dialogue writer + visual director.
+  const isProduct = idea.mode === "product";
+
+  // PRODUCT MODE: VFX choreography rules replace character-dialogue rules
+  const productRules = isProduct ? `
+${VFX_VOCABULARY}
+
+PRODUCT COMMERCIAL SCENE RULES:
+- The "character" of every scene is the PRODUCT (${idea.product?.product_name || bible.characters[0]?.name}). Use its name in the character field.
+- "dialogue" field = NARRATOR VOICEOVER line (max 20 words, warm trustworthy tone) OR empty for pure-VFX scenes
+- Every action MUST use VFX MOTION PRIMITIVES vocabulary (ORBIT, SPIRAL-IN, MACRO GLIDE, etc.)
+- Every action MUST restate: container appearance + label + brand colors (verbatim from bible) so the prompt engine locks them
+- Ingredient scenes: name the ingredient + its EXACT visual description from bible, describe its flight path geometrically (radius, direction, speed)
+- Example action: "MACRO GLIDE across dried goji berries (vivid orange-red, glossy wrinkled skin), then berries lift off and SPIRAL-IN clockwise, radius shrinking from 40cm to 5cm, entering the open amber glass bottle (forest-green label, gold logo) with PARTICLE TRAIL of warm golden light"
+- Camera: studio set only, gradient backdrop in brand colors, lighting identical every scene` : "";
+
+  const system = `You are a ${isProduct ? "commercial VFX director" : "dialogue writer + visual director"}.
 Write scenes ${startScene}-${endScene} of ${totalScenes} for an 8s-per-clip video.
 ${langInstruction}
+${productRules}
 
 ABSOLUTE RULES:
 - Each scene = EXACTLY 8 seconds
@@ -267,11 +420,18 @@ Write scenes ${startScene} through ${endScene} of ${totalScenes}.
 // ========== FORMAT SCRIPT FOR ScriptProcessor ==========
 function formatScript(
   scenes: Array<{ scene: number; character: string; action: string; dialogue: string; location: string }>,
-  bible: StoryBible
+  bible: StoryBible,
+  isProduct = false,
+  vfxStyle = ""
 ): string {
   const lines: string[] = [];
 
   lines.push(`# ${bible.log_line}`);
+  // PRODUCT MODE marker: downstream prompt pipeline (manifest, generate-clip)
+  // reads this header to switch into product/VFX prompting rules.
+  if (isProduct) {
+    lines.push(`[MODE: PRODUCT_COMMERCIAL | VFX: ${vfxStyle || "orbit_assembly"}]`);
+  }
   lines.push("");
 
   scenes.forEach((s) => {
@@ -279,7 +439,8 @@ function formatScript(
     lines.push(`[Location: ${s.location}]`);
     lines.push(`[Action] ${s.action}`);
     if (s.dialogue && s.dialogue.trim()) {
-      lines.push(`${s.character}: "${s.dialogue}"`);
+      // PRODUCT MODE: dialogue is narrator voiceover
+      lines.push(isProduct ? `Narrator (V.O.): "${s.dialogue}"` : `${s.character}: "${s.dialogue}"`);
     }
     lines.push("");
     lines.push("---");
@@ -306,22 +467,31 @@ export async function POST(req: NextRequest) {
     }
 
     const totalScenes = Math.max(2, Math.ceil(idea.durationSeconds / SCENE_DURATION));
+    const isProduct = idea.mode === "product";
 
-    // STAGE 1: Story Bible
-    const storyBible = await generateStoryBible(idea);
+    // PRODUCT MODE validation
+    if (isProduct && !idea.product?.product_name) {
+      return NextResponse.json({ error: "Product mode requires product_name." }, { status: 400 });
+    }
+
+    // STAGE 1: Story Bible (narrative) OR Product Bible (commercial)
+    const storyBible = isProduct
+      ? await generateProductBible(idea)
+      : await generateStoryBible(idea);
 
     storyBible.characters = (storyBible.characters || []).map((c: any, i: number) => ({
-      id: c.id || `char-${i}-${Date.now()}`,
-      name: c.name || `Character ${i + 1}`,
+      // PRODUCT MODE: preserve "product-hero" id so downstream pipeline recognizes it
+      id: c.id || (isProduct ? `product-hero` : `char-${i}-${Date.now()}`),
+      name: c.name || (isProduct ? idea.product!.product_name : `Character ${i + 1}`),
       gender: c.gender || "female",
-      age_group: c.age_group || "25-35",
+      age_group: c.age_group || (isProduct ? "n/a" : "25-35"),
       hair: c.hair || "",
       face_features: c.face_features || "",
       clothing: c.clothing || "",
-      voice_profile_id: c.voice_profile_id || "hanoi_female_soft_trust",
+      voice_profile_id: c.voice_profile_id || (isProduct ? "narrator_warm_trustworthy" : "hanoi_female_soft_trust"),
       voice_timbre: c.voice_timbre || "neutral",
       description: c.description || "",
-      // PHASE 1: Forensic DNA fields
+      // PHASE 1: Forensic DNA fields (product mode repurposes these as product DNA)
       eye_details: c.eye_details || "",
       skin_texture: c.skin_texture || "",
       accessories: c.accessories || "",
@@ -352,7 +522,7 @@ export async function POST(req: NextRequest) {
       allScenes.push(...batch);
     }
 
-    const formattedScript = formatScript(allScenes, storyBible);
+    const formattedScript = formatScript(allScenes, storyBible, isProduct, idea.product?.vfx_style);
 
     const result: ScriptGenResult = {
       storyBible,

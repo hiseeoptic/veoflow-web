@@ -233,9 +233,34 @@ ${additionalContext}`;
       ? `\n[SCENE BIBLE TOKENS - MUST APPEAR VERBATIM IN full_flattened_prompt]\n${sceneBibleTokens.map((t: string, i: number) => `${i + 1}. "${t}"`).join("\n")}\n`
       : "";
 
+    // PRODUCT MODE detection: script header marker OR product-hero subject present
+    const isProductMode = /\[MODE:\s*PRODUCT_COMMERCIAL/i.test(project.script || "")
+      || allCharacters.some((c: any) => String(c.character_id || "").startsWith("product"));
+    const productModeBlock = isProductMode ? `
+
+[PRODUCT COMMERCIAL MODE - ACTIVE]
+The hero "subject" of this clip is a PRODUCT, not a human. Adjust all rules:
+1. subjects[0] = the product. Its visual_dna_full, outfit_dna (= container DNA), accessories (= brand colors),
+   signature_props (= ingredients) MUST repeat VERBATIM from manifest in every clip.
+2. NO human face/identity rules apply. Instead: CONTAINER GEOMETRY LOCK - same bottle shape, same label
+   layout, same logo position, same cap, same material finish in every frame.
+3. Use VFX motion vocabulary in action_variant and timestamp_subshots:
+   ORBIT (360° arc around product), SPIRAL-IN (ingredients fly shrinking circles into container),
+   LEVITATION, SLOW-MO DROP (120fps ramp), PARTICLE TRAIL (glowing light streams),
+   MACRO GLIDE (extreme close-up across texture), BURST-REVERSE, ASSEMBLY, LIGHT SWEEP, DOLLY PUSH-IN.
+4. Describe ingredient flight paths GEOMETRICALLY: direction (clockwise/counter-clockwise),
+   radius change (40cm -> 5cm), speed (slow majestic / quick snap), entry point (bottle mouth).
+5. Lighting = studio product photography: softbox key + rim light + gradient seamless backdrop
+   in brand colors. Specular highlights on container IDENTICAL across clips.
+6. dialogue = narrator voiceover only (speaker: "Narrator"), warm trustworthy tone, no on-screen speaker.
+7. negative_prompt MUST add: "no label distortion, no warped text on label, no extra products,
+   no brand logo changes, no container shape morphing, no human hands unless scripted, consistent backdrop".
+8. Physics elegance: ingredients move with weight and grace - herbs flutter, liquids arc,
+   powders billow. No teleporting; every entry/exit is a smooth continuous path.` : "";
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: userPromptContent + sceneBibleBlock,
+      contents: userPromptContent + sceneBibleBlock + productModeBlock,
       config: {
         systemInstruction: `${systemInstruction}
 
@@ -458,7 +483,7 @@ Multi-speaker overlapping dialogue in 8 seconds causes voice confusion - prefer 
       // Auto-retry once if critic says regenerate_required
       if (criticReport?.verdict === "regenerate_required" && criticReport?.suggested_correction) {
         try {
-          const retryPrompt = `${userPromptContent}${sceneBibleBlock}
+          const retryPrompt = `${userPromptContent}${sceneBibleBlock}${productModeBlock}
 
 [CRITIC FEEDBACK - MANDATORY CORRECTIONS]
 The first attempt had drift score ${criticReport.drift_score}. Issues:

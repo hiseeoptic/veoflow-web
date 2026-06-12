@@ -305,6 +305,42 @@ export type ScriptTone =
   | 'educational' | 'inspiring' | 'dramatic' | 'comedic'
   | 'documentary' | 'commercial' | 'storytelling' | 'mystery';
 
+/** PRODUCT MODE: narrative = character story video, product = product commercial with VFX */
+export type ScriptMode = 'narrative' | 'product';
+
+/** PRODUCT MODE: one ingredient/component of the product with its own visual identity */
+export interface ProductIngredient {
+  name: string;
+  /** Forensic visual description for consistency, e.g. "dried goji berries, vivid orange-red, glossy wrinkled skin" */
+  visual_description: string;
+}
+
+/** PRODUCT MODE: the product's "DNA" - works like character DNA but for objects */
+export interface ProductSpec {
+  product_name: string;
+  /** e.g. "supplement bottle", "cosmetic jar", "coffee bag" */
+  product_type: string;
+  /** Container shape, material, cap, size - locked verbatim across clips */
+  container_dna: string;
+  /** Label design: colors, logo placement, typography style */
+  label_dna: string;
+  /** Brand palette, e.g. "deep forest green + gold accents, cream background" */
+  brand_colors: string;
+  ingredients: ProductIngredient[];
+  /** VFX choreography style, e.g. "orbit assembly", "splash burst", "levitation" */
+  vfx_style: string;
+  tagline?: string;
+}
+
+export const VFX_STYLES = [
+  { id: 'orbit_assembly', label: 'Orbit Assembly - nguyên liệu bay vòng tròn chui vào sản phẩm' },
+  { id: 'splash_burst', label: 'Splash Burst - chất lỏng/bột bắn tung tóe slow-motion' },
+  { id: 'levitation', label: 'Levitation - sản phẩm và nguyên liệu lơ lửng thanh lịch' },
+  { id: 'exploded_view', label: 'Exploded View - tách lớp thành phần rồi ráp lại' },
+  { id: 'macro_journey', label: 'Macro Journey - du hành cận cảnh qua texture nguyên liệu' },
+  { id: 'particle_morph', label: 'Particle Morph - hạt ánh sáng hợp thành sản phẩm' },
+];
+
 export interface ScriptIdea {
   idea: string;
   platform: ScriptPlatform;
@@ -316,6 +352,9 @@ export interface ScriptIdea {
   characterCount: number;
   customAngle?: string;
   hookStyle?: 'shocking' | 'question' | 'statement' | 'visual' | 'auto';
+  /** PRODUCT MODE fields */
+  mode?: ScriptMode;
+  product?: ProductSpec;
 }
 
 export interface StoryLocation {
