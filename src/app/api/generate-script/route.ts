@@ -178,10 +178,56 @@ Visual style: ${idea.style}
   "cta_line": "${p.tagline || "final tagline + call to action"}"
 }`;
 
-  return await jsonCall(system, user, 8192);
+  // Higher token budget: product bible packs all ingredients + forensic DNA
+  return await jsonCall(system, user, 24576);
 }
 
-async function jsonCall(systemPrompt: string, userPrompt: string, maxTokens = 8192) {
+/**
+ * Robust JSON parse with repair for truncated/malformed model output.
+ * Handles: markdown fences, unterminated strings, unclosed braces/brackets.
+ */
+function safeJsonParse(text: string, fallback: any = {}): any {
+  if (!text) return fallback;
+  // Strip markdown code fences
+  let clean = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+
+  // First attempt: parse as-is
+  try {
+    return JSON.parse(clean);
+  } catch {
+    // Repair attempt
+  }
+
+  try {
+    let repaired = clean;
+
+    // If string ends mid-value (unterminated string), close the open quote.
+    // Count unescaped double-quotes; if odd, the last string is open.
+    const quoteCount = (repaired.match(/(?<!\\)"/g) || []).length;
+    if (quoteCount % 2 !== 0) {
+      repaired += '"';
+    }
+
+    // Remove a trailing comma if present (e.g., "...", -> "...")
+    repaired = repaired.replace(/,\s*$/g, "");
+
+    // Balance braces and brackets
+    const openBraces = (repaired.match(/\{/g) || []).length;
+    const closeBraces = (repaired.match(/\}/g) || []).length;
+    const openBrackets = (repaired.match(/\[/g) || []).length;
+    const closeBrackets = (repaired.match(/\]/g) || []).length;
+
+    // Close arrays first, then objects (inner-to-outer heuristic)
+    repaired += "]".repeat(Math.max(0, openBrackets - closeBrackets));
+    repaired += "}".repeat(Math.max(0, openBraces - closeBraces));
+
+    return JSON.parse(repaired);
+  } catch {
+    return fallback;
+  }
+}
+
+async function jsonCall(systemPrompt: string, userPrompt: string, maxTokens = 16384) {
   const response = await ai.models.generateContent({
     model: "gemini-2.5-flash",
     contents: userPrompt,
@@ -189,11 +235,24 @@ async function jsonCall(systemPrompt: string, userPrompt: string, maxTokens = 81
       systemInstruction: systemPrompt,
       responseMimeType: "application/json",
       maxOutputTokens: maxTokens,
-      temperature: 0.8,
+      temperature: 0.7,
+      // CRITICAL: disable thinking so all tokens go to JSON output (prevents truncation)
+      thinkingConfig: { thinkingBudget: 0 },
     },
   });
+
   const text = response.text || "{}";
-  return JSON.parse(text);
+  const parsed = safeJsonParse(text, null);
+
+  if (parsed === null) {
+    // Surface a clear error instead of crashing with cryptic JSON message
+    const finishReason = (response as any)?.candidates?.[0]?.finishReason || "unknown";
+    throw new Error(
+      `AI returned invalid JSON (finishReason: ${finishReason}). ` +
+      `This usually means the output was too long. Try fewer ingredients or shorter duration.`
+    );
+  }
+  return parsed;
 }
 
 // ========== STAGE 1: STORY BIBLE ==========
@@ -413,7 +472,7 @@ Write scenes ${startScene} through ${endScene} of ${totalScenes}.
   ]
 }`;
 
-  const result = await jsonCall(system, user, 8192);
+  const result = await jsonCall(system, user, 16384);
   return result.scenes || [];
 }
 
@@ -466,12 +525,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Duration must be 15-900s." }, { status: 400 });
     }
 
-    const totalScenes = Math.max(2, Math.ceil(idea.durationSeconds / SCENE_DURATION));
     const isProduct = idea.mode === "product";
 
     // PRODUCT MODE validation
     if (isProduct && !idea.product?.product_name) {
       return NextResponse.json({ error: "Product mode requires product_name." }, { status: 400 });
+    }
+
+    let totalScenes = Math.max(2, Math.ceil(idea.durationSeconds / SCENE_DURATION));
+
+    // PRODUCT MODE: ensure enough scenes to showcase every ingredient.
+    // Need: hook + hero reveal + (1 per ingredient) + benefit + packshot.
+    if (isProduct) {
+      const ingredientCount = idea.product?.ingredients?.length || 0;
+      const minScenesNeeded = ingredientCount + 4; // hook, reveal, benefit, packshot
+      if (minScenesNeeded > totalScenes) {
+        totalScenes = minScenesNeeded;
+      }
+      // Cap to keep generation time reasonable
+      totalScenes = Math.min(totalScenes, 40);
     }
 
     // STAGE 1: Story Bible (narrative) OR Product Bible (commercial)
@@ -515,9 +587,33 @@ export async function POST(req: NextRequest) {
         ? allScenes.slice(-3).map(s => `Scene ${s.scene} (${s.location}): ${s.action} | "${s.dialogue}"`).join("\n")
         : "";
 
-      const batch = await generateScenesBatch(
-        idea, storyBible, beatSheet, start, end, totalScenes, priorContext
-      );
+      // Resilient: a single failed batch should not crash the whole script.
+      let batch: Array<{ scene: number; character: string; action: string; dialogue: string; location: string }> = [];
+      try {
+        batch = await generateScenesBatch(
+          idea, storyBible, beatSheet, start, end, totalScenes, priorContext
+        );
+      } catch (batchErr) {
+        console.warn(`Scene batch ${start}-${end} failed, retrying smaller:`, batchErr);
+        // Retry this batch one scene at a time
+        for (let s = start; s <= end; s++) {
+          try {
+            const single = await generateScenesBatch(idea, storyBible, beatSheet, s, s, totalScenes, priorContext);
+            batch.push(...single);
+          } catch {
+            // Last-resort placeholder so the sequence stays intact
+            const heroName = storyBible.characters[0]?.name || "Subject";
+            const locName = storyBible.locations[0]?.display_name || "Scene";
+            batch.push({
+              scene: s,
+              character: heroName,
+              location: locName,
+              action: `Scene ${s}: continuation shot. (Auto-placeholder — regenerate this clip for full detail.)`,
+              dialogue: "",
+            });
+          }
+        }
+      }
 
       allScenes.push(...batch);
     }
