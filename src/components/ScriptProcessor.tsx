@@ -398,8 +398,9 @@ export default function ScriptProcessor({ project, onUpdate }: Props) {
                             <>
                               <button
                                 onClick={e => { e.stopPropagation(); if (clip.flattenedPrompt) copyToClipboard(clip.flattenedPrompt); }}
-                                className="hidden sm:block text-[9px] font-black text-zinc-500 hover:text-white uppercase border border-zinc-700 hover:bg-zinc-700 px-3 py-1.5 rounded-lg transition-all">
-                                COPY
+                                title="Copy prompt để dán vào Veo Flow"
+                                className="hidden sm:block text-[9px] font-black text-indigo-400 hover:text-white uppercase border border-indigo-500/40 hover:bg-indigo-600 px-3 py-1.5 rounded-lg transition-all">
+                                📋 COPY → VEO
                               </button>
                               <button onClick={e => handleRegenerateSingle(e, clip, idx)} disabled={regeneratingId === clip.id}
                                 className="p-2 rounded-full hover:bg-white/10 text-zinc-500 hover:text-white transition-colors">
@@ -418,18 +419,48 @@ export default function ScriptProcessor({ project, onUpdate }: Props) {
                       {expandedClip === clip.id && !isPending && clip.final_json_output && (
                         <div className="px-4 sm:px-8 pb-6 pt-0">
                           <div className="bg-black/40 rounded-2xl p-4 sm:p-6 border border-white/5 space-y-4">
-                            <div>
-                              <span className="text-[9px] font-bold text-indigo-400 uppercase block mb-2">Structured Visual Prompt (JSON)</span>
-                              <pre className="text-[10px] text-zinc-400 font-mono leading-relaxed whitespace-pre-wrap overflow-x-auto p-4 bg-zinc-950 rounded-xl border border-white/5 max-h-48 overflow-y-auto">
-                                {JSON.stringify(clip.final_json_output.visual_prompt, null, 2)}
-                              </pre>
-                            </div>
-                            <div>
-                              <span className="text-[9px] font-bold text-indigo-400 uppercase block mb-2">Flattened for Veo</span>
-                              <p className="text-[10px] text-zinc-400 font-mono leading-relaxed whitespace-pre-wrap border-l-2 border-indigo-500 pl-4 max-h-36 overflow-y-auto">
+                            {/* PROMPT FOR VEO - the thing to actually paste */}
+                            <div className="border border-indigo-500/30 rounded-xl p-3 bg-indigo-950/20">
+                              <div className="flex items-center justify-between mb-2 gap-2">
+                                <span className="text-[9px] font-black text-indigo-300 uppercase">✅ Prompt để dán vào Veo</span>
+                                <button
+                                  onClick={() => copyToClipboard(clip.flattenedPrompt)}
+                                  className="text-[9px] font-black text-white bg-indigo-600 hover:bg-indigo-500 px-3 py-1 rounded-lg transition-all">
+                                  📋 COPY → VEO
+                                </button>
+                              </div>
+                              <p className="text-[10px] text-zinc-300 font-mono leading-relaxed whitespace-pre-wrap max-h-36 overflow-y-auto">
                                 {clip.flattenedPrompt}
                               </p>
+                              <p className="text-[9px] text-zinc-600 mt-1">{clip.flattenedPrompt.length.toLocaleString()} ký tự</p>
                             </div>
+
+                            {/* Negative prompt - optional separate field */}
+                            {clip.negativePrompt && (
+                              <div className="border border-zinc-700/50 rounded-xl p-3">
+                                <div className="flex items-center justify-between mb-2 gap-2">
+                                  <span className="text-[9px] font-black text-zinc-400 uppercase">Negative prompt (tuỳ chọn)</span>
+                                  <button
+                                    onClick={() => copyToClipboard(clip.negativePrompt || "")}
+                                    className="text-[9px] font-black text-zinc-300 bg-zinc-800 hover:bg-zinc-700 px-3 py-1 rounded-lg transition-all">
+                                    Copy NEG
+                                  </button>
+                                </div>
+                                <p className="text-[10px] text-zinc-500 font-mono leading-relaxed whitespace-pre-wrap max-h-20 overflow-y-auto">
+                                  {clip.negativePrompt}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* JSON - storage only, collapsed look */}
+                            <details>
+                              <summary className="text-[9px] font-bold text-zinc-600 uppercase cursor-pointer hover:text-zinc-400">
+                                JSON gốc (chỉ để lưu/xem, KHÔNG dán vào Veo) ▾
+                              </summary>
+                              <pre className="mt-2 text-[10px] text-zinc-500 font-mono leading-relaxed whitespace-pre-wrap overflow-x-auto p-4 bg-zinc-950 rounded-xl border border-white/5 max-h-48 overflow-y-auto">
+                                {JSON.stringify(clip.final_json_output.visual_prompt, null, 2)}
+                              </pre>
+                            </details>
                             {/* PHASE 3: Critic Report Detail */}
                             {clip.criticReport && (
                               <div>
