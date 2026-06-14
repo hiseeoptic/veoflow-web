@@ -194,6 +194,19 @@ const NUMEROLOGY_BEAT_FRAMEWORK = `Cấu trúc VIDEO VIRAL THẦN SỐ HỌC (Ho
 5. CTA - kêu gọi comment số chủ đạo / lưu / tag bạn bè.
 Nếu video dài hơn 5 cảnh: giãn phần INSIGHT và PAYOFF thành nhiều cảnh (mỗi đặc điểm/bài học một cảnh).`;
 
+/** Visual storytelling rules — the secret to a captivating (not boring) numerology video. */
+const NUMEROLOGY_VISUAL_CRAFT = `[NGUYÊN TẮC HÌNH ẢNH — BÍ QUYẾT CUỐN HÚT]
+- SHOW, DON'T TELL: kể bằng HÌNH ẢNH ẨN DỤ, không phải bằng lời thuyết giảng dài.
+- MỖI CẢNH = 1 ẨN DỤ THỊ GIÁC đúng nội dung. Ví dụ:
+  · "cô đơn trên đỉnh" → người đứng một mình trên nóc tòa nhà nhìn đám đông tí hon bên dưới
+  · "gồng mình tiên phong" → người kéo một sợi dây thừng khổng lồ một mình, người khác đứng nhìn
+  · "tự do phiêu lưu" → nhảy lên chuyến tàu đang chạy, gió tạt tóc
+  KHÔNG dùng cảnh generic kiểu "ngồi bàn lướt laptop, nhìn xa xăm".
+- ĐA BỐI CẢNH: mỗi cảnh có thể ở một nơi khác nhau (đường phố, mỏm núi, quán cà phê, sân thượng...) miễn phục vụ ẩn dụ. KHÔNG khóa cứng 1 văn phòng.
+- CÓ DUYÊN / HÀI HƯỚC NHẸ: thêm chi tiết đời thường, relatable, một chút hài để người xem mỉm cười (vd: người Số 5 vừa hứa "lần này nghiêm túc" xong 3s sau đã xách ba lô đi; người Số 1 chỉ đạo cả nhóm xong quay ra tự bê hết đồ vì "thôi để tao làm cho nhanh").
+- ÍT LỜI - NHIỀU HÌNH: thoại NGẮN, để hình ảnh kể phần còn lại. Một câu đắt giá hơn ba câu lý thuyết.
+- ÁNH SÁNG & TÔNG MÀU phục vụ cảm xúc từng nhịp (lạnh/cô đơn ở Problem, ấm/vỡ òa ở Payoff).`;
+
 /**
  * STAGE 1-N: build a numerology persona bible.
  * Creates ONE consistent character (persona representing the Life Path) + setting,
@@ -212,8 +225,11 @@ Output tiếng Việt, giọng gần gũi (xưng "bạn"/"mình"), chạm cảm 
 [KIẾN THỨC NỀN - DÙNG VERBATIM]
 ${brief}
 
-Nhiệm vụ: tạo PERSONA BIBLE — một nhân vật đại diện cho người mang ${lp ? `Số Chủ Đạo ${lp}` : "chỉ số này"}${mi ? ` và Sứ Mệnh ${mi}` : ""},
-cùng bối cảnh thị giác nhất quán, để dựng video ${idea.durationSeconds}s (mỗi cảnh 8s).`;
+${NUMEROLOGY_VISUAL_CRAFT}
+
+Nhiệm vụ: tạo PERSONA BIBLE — một nhân vật đại diện cho người mang ${lp ? `Số Chủ Đạo ${lp}` : "chỉ số này"}${mi ? ` và Sứ Mệnh ${mi}` : ""}.
+Nhân vật giữ NHẤT QUÁN (mặt/tóc/trang phục) nhưng BỐI CẢNH được phép THAY ĐỔI mỗi cảnh để phục vụ ẩn dụ.
+Visual style phải CUỐN HÚT, điện ảnh, có duyên — KHÔNG nhàm chán kiểu "người đẹp văn phòng trầm tư".`;
 
   const user = `[YÊU CẦU]
 Số Chủ Đạo: ${lp || "(không có)"} ${lpArch ? `– ${lpArch}` : ""}
@@ -511,15 +527,18 @@ PRODUCT COMMERCIAL SCENE RULES:
 - Example action: "MACRO GLIDE across dried goji berries (vivid orange-red, glossy wrinkled skin), then berries lift off and SPIRAL-IN clockwise, radius shrinking from 40cm to 5cm, entering the open amber glass bottle (forest-green label, gold logo) with PARTICLE TRAIL of warm golden light"
 - Camera: studio set only, gradient backdrop in brand colors, lighting identical every scene` : "";
 
-  // NUMEROLOGY MODE: voiceover narration over persona b-roll
+  // NUMEROLOGY MODE: voiceover narration over metaphorical persona b-roll
   const numeroRules = isNumero ? `
+${NUMEROLOGY_VISUAL_CRAFT}
+
 NUMEROLOGY VIDEO SCENE RULES:
-- "character" field = the persona name (${bible.characters[0]?.name || "persona"}). Keep this SAME persona every scene for seamless editing.
-- "dialogue" field = VOICEOVER narration (tiếng Việt, ~18-24 từ để vừa 8 giây, giọng gần gũi xưng "bạn").
-- The voiceover follows the beat: Hook → Problem (nỗi đau) → Insight (giải mã) → Payoff (sứ mệnh) → CTA.
-- "action" = mô tả hình ảnh/B-roll thể hiện cảm xúc của nhịp đó (persona làm gì, bối cảnh, ánh sáng), nhất quán nhân vật + bối cảnh.
-- KHÔNG nhồi nhét: mỗi cảnh một ý cảm xúc. Chạm cảm xúc trước, tri thức sau.
-- Cảnh cuối phải có CTA (comment số chủ đạo / lưu / tag).` : "";
+- "character" = persona "${bible.characters[0]?.name || "persona"}". GIỮ NGUYÊN mặt/tóc/trang phục mọi cảnh (để ghép mượt).
+- "dialogue" = VOICEOVER NGẮN GỌN: TỐI ĐA 16 từ/cảnh (lý tưởng 8-14 từ). Một câu đắt giá. TUYỆT ĐỐI không viết đoạn dài, không liệt kê lê thê, không thuyết giảng.
+  BAD (dài, chán): "Bạn khao khát được công nhận, được là người dẫn dắt, nhưng lại trăn trở về cách kết nối, sợ hãi sự cô đơn..."
+  GOOD (ngắn, đắt): "Đứng đầu thì oai. Nhưng đỉnh núi nào mà chẳng lạnh."
+- "action" = MỘT ẨN DỤ THỊ GIÁC đúng nội dung nhịp đó, CÓ DUYÊN/HÀI nhẹ, đổi bối cảnh tự do nếu cần. Mô tả cảnh quay sống động (persona làm gì, ở đâu, ánh sáng, cảm xúc) — KHÔNG generic kiểu "ngồi bàn lướt laptop".
+- Mỗi cảnh MỘT nhịp cảm xúc theo beat: Hook → Problem → Insight → Payoff → CTA. Cảnh cuối có CTA.
+- Ưu tiên HÌNH ẢNH kể chuyện hơn lời nói. Để hình "gánh" nội dung, thoại chỉ điểm xuyết.` : "";
 
   const system = `You are a ${isNumero ? "viral numerology scriptwriter + visual director" : isProduct ? "commercial VFX director" : "dialogue writer + visual director"}.
 Write scenes ${startScene}-${endScene} of ${totalScenes} for an 8s-per-clip video.

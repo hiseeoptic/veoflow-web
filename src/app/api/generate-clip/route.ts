@@ -258,9 +258,28 @@ The hero "subject" of this clip is a PRODUCT, not a human. Adjust all rules:
 8. Physics elegance: ingredients move with weight and grace - herbs flutter, liquids arc,
    powders billow. No teleporting; every entry/exit is a smooth continuous path.` : "";
 
+    // NUMEROLOGY MODE detection: viral short-video style, NOT cinematic-detail style
+    const isNumeroMode = /\[MODE:\s*NUMEROLOGY/i.test(project.script || "");
+    const numeroModeBlock = isNumeroMode ? `
+
+[NUMEROLOGY VIRAL MODE - ACTIVE — ƯU TIÊN HƠN MỌI QUY TẮC ĐIỆN ẢNH DÀI DÒNG]
+Đây là VIDEO VIRAL THẦN SỐ HỌC ngắn (TikTok/Reel), KHÔNG phải phim điện ảnh. Ghi đè:
+1. THOẠI NGẮN — GIỮ VERBATIM: copy ĐÚNG câu thoại trong input, TỐI ĐA 16 từ. TUYỆT ĐỐI KHÔNG mở rộng,
+   không thêm chữ, không thuyết giảng, không liệt kê. Một câu đắt giá. dialogue[].text = đúng câu gốc.
+2. BỐI CẢNH THEO TỪNG CẢNH (KHÔNG khóa cứng 1 environment): mô tả environment theo đúng ẩn dụ của action_variant
+   trong cảnh này. Mỗi cảnh có thể ở nơi khác nhau (đường phố, mỏm núi, sân thượng, quán xá...). KHÓA NHÂN VẬT
+   (mặt/tóc/trang phục giữ nguyên) nhưng KHÔNG ép bối cảnh giống nhau.
+3. HÌNH ẢNH ẨN DỤ + CÓ DUYÊN/HÀI NHẸ: action_variant và timestamp_subshots phải kể bằng hình ảnh ẩn dụ
+   sống động, đúng nội dung, relatable, có một chút hài để người xem mỉm cười. KHÔNG generic kiểu
+   "ngồi bàn lướt laptop, nhìn xa xăm".
+4. NGẮN GỌN: full_flattened_prompt KHÔNG cần dài 5000 ký tự — viết SÚC TÍCH, đủ để Veo hiểu cảnh + nhân vật +
+   hành động + thoại ngắn. Bỏ mọi đoạn lặp DNA lê thê. Ưu tiên hình ảnh hơn chữ nghĩa.
+5. visual_dna_full của persona: mô tả gọn (40-70 từ) đủ giữ nhận diện, KHÔNG cần >150 từ.
+6. ÁNH SÁNG & TÔNG MÀU phục vụ cảm xúc nhịp (lạnh/cô đơn ở Problem, ấm/vỡ òa ở Payoff).` : "";
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: userPromptContent + sceneBibleBlock + productModeBlock,
+      contents: userPromptContent + sceneBibleBlock + productModeBlock + numeroModeBlock,
       config: {
         systemInstruction: `${systemInstruction}
 
@@ -483,7 +502,7 @@ Multi-speaker overlapping dialogue in 8 seconds causes voice confusion - prefer 
       // Auto-retry once if critic says regenerate_required
       if (criticReport?.verdict === "regenerate_required" && criticReport?.suggested_correction) {
         try {
-          const retryPrompt = `${userPromptContent}${sceneBibleBlock}${productModeBlock}
+          const retryPrompt = `${userPromptContent}${sceneBibleBlock}${productModeBlock}${numeroModeBlock}
 
 [CRITIC FEEDBACK - MANDATORY CORRECTIONS]
 The first attempt had drift score ${criticReport.drift_score}. Issues:
