@@ -8,6 +8,7 @@ import {
   Character,
   StoryLocation,
 } from "@/lib/types";
+import { buildNumerologyBrief, LIFE_PATH, MISSION } from "@/lib/numerologyData";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
 
@@ -182,6 +183,86 @@ Visual style: ${idea.style}
   return await jsonCall(system, user, 24576);
 }
 
+// ========== NUMEROLOGY MODE (Thần Số Học) ==========
+
+/** Viral short-video structure for a numerology profile video. */
+const NUMEROLOGY_BEAT_FRAMEWORK = `Cấu trúc VIDEO VIRAL THẦN SỐ HỌC (Hook → Problem → Insight → Payoff → CTA):
+1. HOOK (cảnh 1) - câu mở chặn tay người lướt: gọi thẳng số chủ đạo + gợi nỗi đau, hoặc nghịch lý.
+2. PROBLEM / PAIN - chạm nỗi đau (lấy từ "Bóng tối" của Số Chủ Đạo). Khiến người xem gật gù "đúng là mình".
+3. INSIGHT / GIẢI MÃ - giải thích bằng thần số học: siêu năng lực thật sự, vì sao họ như vậy, mâu thuẫn chủ đạo↔sứ mệnh (ngũ hành).
+4. PAYOFF / SỨ MỆNH - hé lộ sứ mệnh: con người ấy SINH RA ĐỂ LÀM GÌ. Dùng câu chốt sứ mệnh.
+5. CTA - kêu gọi comment số chủ đạo / lưu / tag bạn bè.
+Nếu video dài hơn 5 cảnh: giãn phần INSIGHT và PAYOFF thành nhiều cảnh (mỗi đặc điểm/bài học một cảnh).`;
+
+/**
+ * STAGE 1-N: build a numerology persona bible.
+ * Creates ONE consistent character (persona representing the Life Path) + setting,
+ * so the video has a coherent human face across all 8s shots.
+ */
+async function generateNumerologyBible(idea: ScriptIdea): Promise<StoryBible> {
+  const lp = idea.numerology?.lifePath;
+  const mi = idea.numerology?.mission;
+  const brief = buildNumerologyBrief(lp, mi);
+  const lpArch = lp && LIFE_PATH[lp] ? LIFE_PATH[lp].archetype : "";
+  const miEss = mi && MISSION[mi] ? MISSION[mi].essence : "";
+
+  const system = `Bạn là biên kịch video viral chuyên về THẦN SỐ HỌC cho TikTok/Reel/YouTube Short.
+Output tiếng Việt, giọng gần gũi (xưng "bạn"/"mình"), chạm cảm xúc trước - tri thức sau.
+
+[KIẾN THỨC NỀN - DÙNG VERBATIM]
+${brief}
+
+Nhiệm vụ: tạo PERSONA BIBLE — một nhân vật đại diện cho người mang ${lp ? `Số Chủ Đạo ${lp}` : "chỉ số này"}${mi ? ` và Sứ Mệnh ${mi}` : ""},
+cùng bối cảnh thị giác nhất quán, để dựng video ${idea.durationSeconds}s (mỗi cảnh 8s).`;
+
+  const user = `[YÊU CẦU]
+Số Chủ Đạo: ${lp || "(không có)"} ${lpArch ? `– ${lpArch}` : ""}
+Sứ Mệnh: ${mi || "(không có)"} ${miEss ? `– ${miEss}` : ""}
+Concept thêm (nếu có): ${idea.idea || "(tự do sáng tạo theo đặc điểm số)"}
+Thời lượng: ${idea.durationSeconds}s (${Math.max(2, Math.ceil(idea.durationSeconds / 8))} cảnh 8s)
+Visual style: ${idea.style}
+
+[OUTPUT JSON SCHEMA]
+{
+  "log_line": "tiêu đề video hấp dẫn (có số + cảm xúc), max 20 từ",
+  "premise": "2-3 câu: thông điệp lõi của video (kết hợp siêu năng lực + nỗi đau + sứ mệnh)",
+  "characters": [
+    {
+      "id": "char-persona",
+      "name": "tên nhân vật đại diện (vd: Minh, Linh...)",
+      "gender": "male" | "female",
+      "age_group": "vd 25-30",
+      "hair": "mô tả tóc cụ thể",
+      "face_features": "đặc điểm khuôn mặt",
+      "clothing": "trang phục phản ánh tính cách số chủ đạo (locked, nhất quán mọi cảnh)",
+      "voice_profile_id": "vd narrator_warm_vi",
+      "voice_timbre": "ấm/trầm/...",
+      "description": "100+ từ: chân dung nhân vật thể hiện đúng năng lượng số chủ đạo",
+      "eye_details": "chi tiết mắt",
+      "skin_texture": "chất da",
+      "accessories": "phụ kiện nhất quán",
+      "gait_posture": "dáng/cử chỉ đặc trưng",
+      "signature_props": "đạo cụ biểu tượng cho số (vd Số 5: ba lô, bản đồ)"
+    }
+  ],
+  "locations": [
+    {
+      "location_id": "loc_main",
+      "display_name": "bối cảnh chính phản ánh số chủ đạo",
+      "description": "50+ từ mô tả thị giác",
+      "visual_anchors": "ánh sáng, tông màu, chi tiết đặc trưng",
+      "archetype_ref": "Interior_HumanScale_SemiEnclosed" | "Exterior_Urban_Open" | "Interior_Narrow_Transitional" | "Interior_Large_Public"
+    }
+  ],
+  "visual_style_note": ">80 từ: phong cách quay (lens, ánh sáng, màu, mood) hợp với năng lượng số",
+  "emotional_arc": "tò mò -> đồng cảm nỗi đau -> vỡ lẽ (insight) -> được nâng đỡ (sứ mệnh) -> hành động",
+  "hook_strategy": "câu/hình ảnh 3 giây đầu (dựa trên BÓNG TỐI của số để gây tò mò)",
+  "cta_line": "lời CTA cuối (comment số chủ đạo / lưu / tag) + tinh thần câu chốt sứ mệnh"
+}`;
+
+  return await jsonCall(system, user, 12288);
+}
+
 /**
  * Robust JSON parse with repair for truncated/malformed model output.
  * Handles: markdown fences, unterminated strings, unclosed braces/brackets.
@@ -333,9 +414,12 @@ async function generateBeatSheet(
   totalScenes: number
 ): Promise<BeatItem[]> {
   const isProduct = idea.mode === "product";
+  const isNumero = idea.mode === "numerology";
   const framework = pickFramework(idea.durationSeconds);
-  // PRODUCT MODE: always use commercial framework regardless of duration
-  const beatTemplate = isProduct ? COMMERCIAL_BEAT_FRAMEWORK : BEAT_FRAMEWORKS[framework];
+  // Choose framework by mode
+  const beatTemplate = isNumero
+    ? NUMEROLOGY_BEAT_FRAMEWORK
+    : isProduct ? COMMERCIAL_BEAT_FRAMEWORK : BEAT_FRAMEWORKS[framework];
 
   const langInstruction = idea.language === "vi"
     ? "Output trong tiếng Việt."
@@ -345,10 +429,13 @@ async function generateBeatSheet(
     ? `\nPRODUCT MODE: This is a COMMERCIAL. The INGREDIENT SHOWCASE / VFX ASSEMBLY beat is the centerpiece -
 allocate ONE scene per ingredient so each gets a full 8s moment (macro intro -> flight into orbit -> entry into container).
 VFX style for the whole spot: ${idea.product?.vfx_style || "orbit_assembly"}.`
+    : isNumero
+    ? `\nNUMEROLOGY MODE: video viral thần số học. Mỗi cảnh 8s tương ứng một nhịp cảm xúc. Hook nằm ở cảnh 1.
+Phần PROBLEM phải chạm nỗi đau, phần PAYOFF hé lộ sứ mệnh. Giữ nhân vật persona nhất quán.`
     : "";
 
-  const system = `You are a ${isProduct ? "commercial director" : "story architect"}.
-Generate a BEAT SHEET breaking the ${isProduct ? "commercial" : "story"} into ${totalScenes} scenes (each 8s).
+  const system = `You are a ${isNumero ? "viral numerology scriptwriter" : isProduct ? "commercial director" : "story architect"}.
+Generate a BEAT SHEET breaking the ${isNumero ? "video" : isProduct ? "commercial" : "story"} into ${totalScenes} scenes (each 8s).
 ${langInstruction}
 
 USE THIS FRAMEWORK:
@@ -409,6 +496,7 @@ async function generateScenesBatch(
   }).join('\n');
 
   const isProduct = idea.mode === "product";
+  const isNumero = idea.mode === "numerology";
 
   // PRODUCT MODE: VFX choreography rules replace character-dialogue rules
   const productRules = isProduct ? `
@@ -423,10 +511,21 @@ PRODUCT COMMERCIAL SCENE RULES:
 - Example action: "MACRO GLIDE across dried goji berries (vivid orange-red, glossy wrinkled skin), then berries lift off and SPIRAL-IN clockwise, radius shrinking from 40cm to 5cm, entering the open amber glass bottle (forest-green label, gold logo) with PARTICLE TRAIL of warm golden light"
 - Camera: studio set only, gradient backdrop in brand colors, lighting identical every scene` : "";
 
-  const system = `You are a ${isProduct ? "commercial VFX director" : "dialogue writer + visual director"}.
+  // NUMEROLOGY MODE: voiceover narration over persona b-roll
+  const numeroRules = isNumero ? `
+NUMEROLOGY VIDEO SCENE RULES:
+- "character" field = the persona name (${bible.characters[0]?.name || "persona"}). Keep this SAME persona every scene for seamless editing.
+- "dialogue" field = VOICEOVER narration (tiếng Việt, ~18-24 từ để vừa 8 giây, giọng gần gũi xưng "bạn").
+- The voiceover follows the beat: Hook → Problem (nỗi đau) → Insight (giải mã) → Payoff (sứ mệnh) → CTA.
+- "action" = mô tả hình ảnh/B-roll thể hiện cảm xúc của nhịp đó (persona làm gì, bối cảnh, ánh sáng), nhất quán nhân vật + bối cảnh.
+- KHÔNG nhồi nhét: mỗi cảnh một ý cảm xúc. Chạm cảm xúc trước, tri thức sau.
+- Cảnh cuối phải có CTA (comment số chủ đạo / lưu / tag).` : "";
+
+  const system = `You are a ${isNumero ? "viral numerology scriptwriter + visual director" : isProduct ? "commercial VFX director" : "dialogue writer + visual director"}.
 Write scenes ${startScene}-${endScene} of ${totalScenes} for an 8s-per-clip video.
 ${langInstruction}
 ${productRules}
+${numeroRules}
 
 ABSOLUTE RULES:
 - Each scene = EXACTLY 8 seconds
@@ -481,15 +580,16 @@ function formatScript(
   scenes: Array<{ scene: number; character: string; action: string; dialogue: string; location: string }>,
   bible: StoryBible,
   isProduct = false,
-  vfxStyle = ""
+  vfxStyle = "",
+  isNumero = false
 ): string {
   const lines: string[] = [];
 
   lines.push(`# ${bible.log_line}`);
-  // PRODUCT MODE marker: downstream prompt pipeline (manifest, generate-clip)
-  // reads this header to switch into product/VFX prompting rules.
   if (isProduct) {
     lines.push(`[MODE: PRODUCT_COMMERCIAL | VFX: ${vfxStyle || "orbit_assembly"}]`);
+  } else if (isNumero) {
+    lines.push(`[MODE: NUMEROLOGY]`);
   }
   lines.push("");
 
@@ -498,8 +598,8 @@ function formatScript(
     lines.push(`[Location: ${s.location}]`);
     lines.push(`[Action] ${s.action}`);
     if (s.dialogue && s.dialogue.trim()) {
-      // PRODUCT MODE: dialogue is narrator voiceover
-      lines.push(isProduct ? `Narrator (V.O.): "${s.dialogue}"` : `${s.character}: "${s.dialogue}"`);
+      // Product + numerology dialogue = voiceover narration
+      lines.push((isProduct || isNumero) ? `Narrator (V.O.): "${s.dialogue}"` : `${s.character}: "${s.dialogue}"`);
     }
     lines.push("");
     lines.push("---");
@@ -518,14 +618,22 @@ export async function POST(req: NextRequest) {
   try {
     const idea: ScriptIdea = await req.json();
 
-    if (!idea.idea || idea.idea.length < 5) {
-      return NextResponse.json({ error: "Idea is too short. Min 5 characters." }, { status: 400 });
+    const isProduct = idea.mode === "product";
+    const isNumero = idea.mode === "numerology";
+
+    // Validation (numerology only needs a Life Path; others need an idea)
+    if (isNumero) {
+      if (!idea.numerology?.lifePath) {
+        return NextResponse.json({ error: "Chế độ Thần Số Học cần chọn Số Chủ Đạo." }, { status: 400 });
+      }
+    } else if (!isProduct) {
+      if (!idea.idea || idea.idea.length < 5) {
+        return NextResponse.json({ error: "Idea is too short. Min 5 characters." }, { status: 400 });
+      }
     }
     if (idea.durationSeconds < 15 || idea.durationSeconds > 900) {
       return NextResponse.json({ error: "Duration must be 15-900s." }, { status: 400 });
     }
-
-    const isProduct = idea.mode === "product";
 
     // PRODUCT MODE validation
     if (isProduct && !idea.product?.product_name) {
@@ -546,8 +654,10 @@ export async function POST(req: NextRequest) {
       totalScenes = Math.min(totalScenes, 40);
     }
 
-    // STAGE 1: Story Bible (narrative) OR Product Bible (commercial)
-    const storyBible = isProduct
+    // STAGE 1: Bible — numerology / product / narrative
+    const storyBible = isNumero
+      ? await generateNumerologyBible(idea)
+      : isProduct
       ? await generateProductBible(idea)
       : await generateStoryBible(idea);
 
@@ -618,7 +728,7 @@ export async function POST(req: NextRequest) {
       allScenes.push(...batch);
     }
 
-    const formattedScript = formatScript(allScenes, storyBible, isProduct, idea.product?.vfx_style);
+    const formattedScript = formatScript(allScenes, storyBible, isProduct, idea.product?.vfx_style, isNumero);
 
     const result: ScriptGenResult = {
       storyBible,

@@ -305,8 +305,16 @@ export type ScriptTone =
   | 'educational' | 'inspiring' | 'dramatic' | 'comedic'
   | 'documentary' | 'commercial' | 'storytelling' | 'mystery';
 
-/** PRODUCT MODE: narrative = character story video, product = product commercial with VFX */
-export type ScriptMode = 'narrative' | 'product';
+/** Script mode: narrative = character story, numerology = thần số học, product = (legacy, hidden) */
+export type ScriptMode = 'narrative' | 'numerology' | 'product';
+
+/** NUMEROLOGY MODE: chosen Life Path + optional Mission number to base the script on */
+export interface NumerologySpec {
+  /** Số Chủ Đạo (Đường Đời): "1"-"9", "11", "22", "33" */
+  lifePath?: string;
+  /** Sứ Mệnh (optional): "1"-"9", "11", "22" */
+  mission?: string;
+}
 
 /** PRODUCT MODE: one ingredient/component of the product with its own visual identity */
 export interface ProductIngredient {
@@ -352,9 +360,11 @@ export interface ScriptIdea {
   characterCount: number;
   customAngle?: string;
   hookStyle?: 'shocking' | 'question' | 'statement' | 'visual' | 'auto';
-  /** PRODUCT MODE fields */
+  /** MODE fields */
   mode?: ScriptMode;
   product?: ProductSpec;
+  /** NUMEROLOGY MODE */
+  numerology?: NumerologySpec;
 }
 
 export interface StoryLocation {

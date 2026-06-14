@@ -15,6 +15,7 @@ import {
   ScriptIdea,
   ProductIngredient,
 } from "@/lib/types";
+import { LIFE_PATH, MISSION, LIFE_PATH_OPTIONS, MISSION_OPTIONS } from "@/lib/numerologyData";
 
 interface Props {
   project: Project;
@@ -57,6 +58,10 @@ export default function ScriptGenerator({ project, onUpdate, onSwitchView }: Pro
   const [vfxStyle, setVfxStyle] = useState(VFX_STYLES[0].id);
   const [tagline, setTagline] = useState("");
 
+  // NUMEROLOGY MODE state
+  const [lifePath, setLifePath] = useState("");
+  const [mission, setMission] = useState("");
+
   // Generation state
   const [stage, setStage] = useState<Stage>("idle");
   const [errorMsg, setErrorMsg] = useState("");
@@ -73,13 +78,18 @@ export default function ScriptGenerator({ project, onUpdate, onSwitchView }: Pro
   };
 
   const isProductMode = mode === "product";
+  const isNumeroMode = mode === "numerology";
 
   const handleGenerate = async () => {
+    if (isNumeroMode && !lifePath) {
+      alert("Vui lòng chọn Số Chủ Đạo.");
+      return;
+    }
     if (isProductMode && !productName.trim()) {
       alert(language === "vi" ? "Vui lòng nhập tên sản phẩm." : "Please enter product name.");
       return;
     }
-    if (!isProductMode && !idea.trim()) {
+    if (!isProductMode && !isNumeroMode && !idea.trim()) {
       alert("Please enter your video idea first.");
       return;
     }
@@ -98,14 +108,15 @@ export default function ScriptGenerator({ project, onUpdate, onSwitchView }: Pro
       });
 
     const payload: ScriptIdea = {
-      idea: idea.trim() || (isProductMode ? `Video quảng cáo sản phẩm ${productName.trim()}` : ""),
+      idea: idea.trim() || (isProductMode ? `Video quảng cáo sản phẩm ${productName.trim()}`
+        : isNumeroMode ? `Video thần số học cho Số Chủ Đạo ${lifePath}${mission ? `, Sứ Mệnh ${mission}` : ""}` : ""),
       platform,
       durationSeconds: duration,
-      tone: isProductMode ? "commercial" : tone,
+      tone: isProductMode ? "commercial" : isNumeroMode ? "inspiring" : tone,
       audience: audience.trim() || "general audience",
-      language,
+      language: isNumeroMode ? "vi" : language,
       style,
-      characterCount: isProductMode ? 1 : characterCount,
+      characterCount: (isProductMode || isNumeroMode) ? 1 : characterCount,
       customAngle: customAngle.trim() || undefined,
       hookStyle,
       mode,
@@ -118,6 +129,10 @@ export default function ScriptGenerator({ project, onUpdate, onSwitchView }: Pro
         ingredients,
         vfx_style: vfxStyle,
         tagline: tagline.trim() || undefined,
+      } : undefined,
+      numerology: isNumeroMode ? {
+        lifePath: lifePath || undefined,
+        mission: mission || undefined,
       } : undefined,
     };
 
@@ -211,24 +226,63 @@ export default function ScriptGenerator({ project, onUpdate, onSwitchView }: Pro
                     : "bg-zinc-900 text-zinc-500 border-zinc-800 hover:text-zinc-300"
                 }`}
               >
-                🎬 Narrative
+                🎬 Đề tài thường
               </button>
               <button
-                onClick={() => setMode("product")}
+                onClick={() => setMode("numerology")}
                 disabled={isGenerating}
                 className={`py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border ${
-                  mode === "product"
-                    ? "bg-amber-600 text-white border-amber-500 shadow-lg shadow-amber-600/30"
+                  mode === "numerology"
+                    ? "bg-violet-600 text-white border-violet-500 shadow-lg shadow-violet-600/30"
                     : "bg-zinc-900 text-zinc-500 border-zinc-800 hover:text-zinc-300"
                 }`}
               >
-                📦 Product Ad
+                🔮 Thần Số Học
               </button>
             </div>
 
-            <h3 className={`text-[10px] font-black uppercase tracking-widest ${isProductMode ? "text-amber-400" : "text-emerald-400"}`}>
-              {isProductMode ? "Product Commercial" : "Your Idea"}
+            <h3 className={`text-[10px] font-black uppercase tracking-widest ${isProductMode ? "text-amber-400" : isNumeroMode ? "text-violet-400" : "text-emerald-400"}`}>
+              {isProductMode ? "Product Commercial" : isNumeroMode ? "Thần Số Học – Chọn Chỉ Số" : "Your Idea"}
             </h3>
+
+            {/* NUMEROLOGY MODE FIELDS */}
+            {isNumeroMode && (
+              <div className="space-y-3 border border-violet-500/20 bg-violet-950/20 rounded-2xl p-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-1.5">Số Chủ Đạo *</label>
+                    <select value={lifePath} onChange={e => setLifePath(e.target.value)} disabled={isGenerating}
+                      className="w-full bg-black border border-zinc-800 rounded-xl px-3 py-2.5 text-xs text-zinc-200 outline-none focus:border-violet-500/40 disabled:opacity-50">
+                      <option value="">— Chọn —</option>
+                      {LIFE_PATH_OPTIONS.map(n => <option key={n} value={n}>Số {n}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-1.5">Sứ Mệnh (tuỳ chọn)</label>
+                    <select value={mission} onChange={e => setMission(e.target.value)} disabled={isGenerating}
+                      className="w-full bg-black border border-zinc-800 rounded-xl px-3 py-2.5 text-xs text-zinc-200 outline-none focus:border-violet-500/40 disabled:opacity-50">
+                      <option value="">— Không —</option>
+                      {MISSION_OPTIONS.map(n => <option key={n} value={n}>Số {n}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Preview profile khi chọn */}
+                {lifePath && LIFE_PATH[lifePath] && (
+                  <div className="bg-black/40 rounded-xl p-3 border border-white/5 text-[10px] leading-relaxed">
+                    <p className="text-violet-300 font-black uppercase mb-1">Số {lifePath} – {LIFE_PATH[lifePath].archetype}</p>
+                    <p className="text-zinc-400"><span className="text-zinc-500">Từ khóa:</span> {LIFE_PATH[lifePath].keywords}</p>
+                    <p className="text-zinc-400 mt-0.5"><span className="text-zinc-500">Bóng tối:</span> {LIFE_PATH[lifePath].shadow}</p>
+                    {mission && MISSION[mission] && (
+                      <p className="text-zinc-400 mt-1 pt-1 border-t border-white/5"><span className="text-zinc-500">Sứ mệnh {mission}:</span> {MISSION[mission].essence}</p>
+                    )}
+                  </div>
+                )}
+                <p className="text-[9px] text-violet-400/80 italic">
+                  💡 Dữ liệu lấy từ kho thần số học. Chọn 1 hoặc 2 chỉ số → AI viết kịch bản video viral (hook + nỗi đau + giải mã + sứ mệnh + CTA).
+                </p>
+              </div>
+            )}
 
             {/* PRODUCT MODE FIELDS */}
             {isProductMode && (
@@ -299,16 +353,18 @@ export default function ScriptGenerator({ project, onUpdate, onSwitchView }: Pro
 
             <div>
               <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2">
-                {isProductMode ? "Concept quảng cáo (tuỳ chọn)" : "Video Idea / Concept"}
+                {isProductMode ? "Concept quảng cáo (tuỳ chọn)" : isNumeroMode ? "Concept thêm (tuỳ chọn)" : "Video Idea / Concept"}
               </label>
               <textarea
                 value={idea}
                 onChange={e => setIdea(e.target.value)}
-                rows={isProductMode ? 2 : 4}
+                rows={(isProductMode || isNumeroMode) ? 2 : 4}
                 disabled={isGenerating}
                 className="w-full bg-black border border-zinc-800 rounded-2xl p-4 text-sm text-zinc-200 outline-none focus:border-emerald-500/40 resize-none disabled:opacity-50"
                 placeholder={isProductMode
                   ? (language === "vi" ? "VD: cảm giác thiên nhiên tinh khiết, sang trọng spa..." : "E.g. pure nature feeling, luxury spa vibe...")
+                  : isNumeroMode
+                  ? "VD: nhấn vào chủ đề sự nghiệp / tình yêu / hành trình tìm chính mình... (để trống nếu muốn AI tự do)"
                   : language === "vi"
                   ? "VD: Video về cách AI đang thay đổi ngành y tế qua câu chuyện của một bác sĩ và bệnh nhân của cô ấy..."
                   : "E.g. A video about how AI is changing healthcare through the story of a doctor and her patient..."}
@@ -351,6 +407,10 @@ export default function ScriptGenerator({ project, onUpdate, onSwitchView }: Pro
                 {isProductMode ? (
                   <div className="w-full bg-zinc-900 border border-amber-500/30 rounded-xl px-3 py-2.5 text-xs text-amber-400 font-bold">
                     Commercial (auto)
+                  </div>
+                ) : isNumeroMode ? (
+                  <div className="w-full bg-zinc-900 border border-violet-500/30 rounded-xl px-3 py-2.5 text-xs text-violet-400 font-bold">
+                    Viral / Cảm hứng (auto)
                   </div>
                 ) : (
                 <select
@@ -395,6 +455,13 @@ export default function ScriptGenerator({ project, onUpdate, onSwitchView }: Pro
                     <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2">Hero</label>
                     <div className="w-full bg-zinc-900 border border-amber-500/30 rounded-xl px-3 py-2.5 text-xs text-amber-400 font-bold">
                       📦 Product (auto)
+                    </div>
+                  </>
+                ) : isNumeroMode ? (
+                  <>
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2">Nhân vật</label>
+                    <div className="w-full bg-zinc-900 border border-violet-500/30 rounded-xl px-3 py-2.5 text-xs text-violet-400 font-bold">
+                      🔮 1 persona (auto)
                     </div>
                   </>
                 ) : (
@@ -465,21 +532,28 @@ export default function ScriptGenerator({ project, onUpdate, onSwitchView }: Pro
             </details>
 
             {/* Generate Button */}
+            {(() => {
+              const disabled = isGenerating || (isProductMode ? !productName.trim() : isNumeroMode ? !lifePath : !idea.trim());
+              return (
             <button
               onClick={handleGenerate}
-              disabled={isGenerating || (isProductMode ? !productName.trim() : !idea.trim())}
+              disabled={disabled}
               className={`w-full py-4 sm:py-5 rounded-2xl font-black text-xs sm:text-sm uppercase tracking-widest transition-all shadow-2xl ${
                 isGenerating
                   ? "bg-zinc-800 text-zinc-500 cursor-wait"
-                  : (isProductMode ? !productName.trim() : !idea.trim())
+                  : (isProductMode ? !productName.trim() : isNumeroMode ? !lifePath : !idea.trim())
                   ? "bg-zinc-900 text-zinc-700 cursor-not-allowed"
                   : isProductMode
                   ? "bg-amber-600 hover:bg-amber-500 text-white shadow-amber-600/30 active:scale-[0.98]"
+                  : isNumeroMode
+                  ? "bg-violet-600 hover:bg-violet-500 text-white shadow-violet-600/30 active:scale-[0.98]"
                   : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30 active:scale-[0.98]"
               }`}
             >
-              {isGenerating ? "GENERATING SCRIPT..." : isProductMode ? "📦 GENERATE COMMERCIAL" : "✨ GENERATE SCRIPT"}
+              {isGenerating ? "ĐANG VIẾT KỊCH BẢN..." : isProductMode ? "📦 GENERATE COMMERCIAL" : isNumeroMode ? "🔮 VIẾT KỊCH BẢN THẦN SỐ" : "✨ GENERATE SCRIPT"}
             </button>
+              );
+            })()}
 
             {/* Progress */}
             {(isGenerating || stage === "done" || stage === "error") && (
