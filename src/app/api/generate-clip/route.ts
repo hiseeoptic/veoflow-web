@@ -210,6 +210,9 @@ ${allCharsWithProj.map((c: any) => {
     const userPromptContent = `[INPUT CONTEXT JSON]
 ${assembledContextJSON}
 
+[TONE / PHONG CÁCH NỘI DUNG]
+${project.tone || "Professional"} — Apply this tone consistently across dialogue, action descriptions, and visual mood.
+
 [LANGUAGE LOCK]
 Output language: ${languageLock}
 

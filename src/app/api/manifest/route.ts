@@ -67,6 +67,7 @@ ${ecosystemInjection}
 [PROJECT INPUT]
 Title: ${project.title}
 Style: ${project.style}
+Tone: ${project.tone || "Professional"}
 Characters (FULL DATA - use ALL fields verbatim):
 ${JSON.stringify(charactersDetail, null, 2)}
 

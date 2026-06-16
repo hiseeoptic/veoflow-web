@@ -283,6 +283,7 @@ export interface Project {
   title: string;
   script: string;
   style: string;
+  tone: string;
   characters: Character[];
   clips: VideoClip[];
   masterManifest?: MasterManifest;

@@ -452,15 +452,19 @@ export default function PromptExport({ project, onUpdate }: Props) {
               </select>
             </div>
             <div>
-              <label className="text-[9px] font-black text-zinc-600 uppercase block mb-1.5">Duration</label>
-              <select
+              <label className="text-[9px] font-black text-zinc-600 uppercase block mb-1.5">Duration (giây)</label>
+              <input
+                type="number"
+                min={1}
+                max={60}
                 value={duration}
-                onChange={e => setDuration(Number(e.target.value))}
-                className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-[11px] font-bold text-zinc-300 outline-none cursor-pointer"
-              >
-                <option value={5}>5 seconds</option>
-                <option value={8}>8 seconds</option>
-              </select>
+                onChange={e => {
+                  const v = Math.max(1, Math.min(60, Number(e.target.value)));
+                  setDuration(isNaN(v) ? 8 : v);
+                }}
+                className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-[11px] font-bold text-zinc-300 outline-none"
+                placeholder="8"
+              />
             </div>
             <div className="flex flex-col justify-end gap-2">
               <button

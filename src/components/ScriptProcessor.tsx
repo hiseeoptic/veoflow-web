@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { Project, VideoClip, VEO_STYLES } from "@/lib/types";
+import { Project, VideoClip, VEO_STYLES, SCRIPT_TONES } from "@/lib/types";
 
 interface Props {
   project: Project;
@@ -235,6 +235,13 @@ export default function ScriptProcessor({ project, onUpdate }: Props) {
               className="bg-zinc-900 border border-white/10 rounded-xl px-3 py-1.5 text-[10px] font-black text-zinc-400 outline-none uppercase cursor-pointer"
             >
               {VEO_STYLES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select
+              value={project.tone || SCRIPT_TONES[0].id}
+              onChange={e => onUpdate({ tone: e.target.value })}
+              className="bg-zinc-900 border border-white/10 rounded-xl px-3 py-1.5 text-[10px] font-black text-zinc-400 outline-none uppercase cursor-pointer"
+            >
+              {SCRIPT_TONES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
             </select>
             <div className="flex items-center gap-2">
               <div className={`w-2 h-2 rounded-full ${manifestStatus === "ready" ? "bg-green-500" : "bg-red-500 animate-pulse"}`}></div>

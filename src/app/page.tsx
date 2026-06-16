@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Project, AppView, VEO_STYLES } from "@/lib/types";
+import { Project, AppView, VEO_STYLES, SCRIPT_TONES } from "@/lib/types";
 import Sidebar from "@/components/Sidebar";
 import CharacterEditor from "@/components/CharacterEditor";
 import ScriptProcessor from "@/components/ScriptProcessor";
@@ -16,6 +16,7 @@ export default function Home() {
     title: "New Veo Flow",
     script: "",
     style: VEO_STYLES[0],
+    tone: SCRIPT_TONES[0].id,
     characters: [],
     clips: [],
     createdAt: Date.now(),
