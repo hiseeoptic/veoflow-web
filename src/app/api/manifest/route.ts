@@ -169,6 +169,29 @@ Return a JSON object with these top-level keys:
       if (data.audio_lock?.ambient_layer_base) sceneBibleTokens.push(`Ambient: ${data.audio_lock.ambient_layer_base}`);
     }
 
+    // ROBUSTNESS: guarantee the 3 strongest cross-clip style fingerprints always exist.
+    // These verbatim tokens are what stop color / palette / ambient from drifting across 40+ clips.
+    const hasToken = (kw: RegExp) => sceneBibleTokens.some((t) => kw.test(t));
+    const camLock: any = data.camera_lock || {};
+    const audLock: any = data.audio_lock || {};
+    if (!hasToken(/grade|grading|lut|film stock|color/i)) {
+      sceneBibleTokens.push(
+        camLock.grading_lut
+          ? `Color grade: ${camLock.grading_lut}`
+          : "Color grade: cinematic teal-shadow warm-highlight, identical contrast in every clip"
+      );
+    }
+    if (!hasToken(/palette|hex|#|colou?r scheme/i)) {
+      sceneBibleTokens.push("Palette: locked color scheme - same dominant + accent colors in every clip");
+    }
+    if (!hasToken(/ambient|room tone|reverb|audio|sound/i)) {
+      sceneBibleTokens.push(
+        audLock.ambient_layer_base
+          ? `Ambient: ${audLock.ambient_layer_base}`
+          : "Ambient: consistent low room-tone bed, no music unless scripted"
+      );
+    }
+
     const manifest = {
       project_id: project.id,
       generated_at: compiledManifest.generated_at,

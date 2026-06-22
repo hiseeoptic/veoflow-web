@@ -207,6 +207,35 @@ ${allCharsWithProj.map((c: any) => {
 5. Active speaker must have a close-up or medium close-up shot in their dialogue's sub-shot timestamp.\n`
       : "";
 
+    // === SOUND CONTINUITY (Âm thanh): one ambient bed + reverb, identical across ALL clips ===
+    // Veo 3 generates native audio. When 40+ 8s clips are stitched, a drifting room-tone or
+    // music bed makes every cut audible. Lock the background bed so the soundtrack stays seamless.
+    const audioLock: any = masterManifest.audio_lock || {};
+    const audioContinuityBlock = (audioLock.ambient_layer_base || audioLock.reverb_profile)
+      ? `\n[AUDIO CONTINUITY LOCK - IDENTICAL SOUND BED EVERY CLIP]
+Reproduce these LOCKED audio properties VERBATIM in audio_config, and reference the same ambient bed inside full_flattened_prompt so stitched clips share ONE seamless soundscape:
+- Ambient bed (base layer): "${audioLock.ambient_layer_base || "low neutral room tone, no music"}"
+- Reverb profile: "${audioLock.reverb_profile || "natural reverb matching the locked environment"}"
+RULES:
+1. audio_config.ambient_layer_base and audio_config.reverb_profile MUST equal the values above (verbatim).
+2. Do NOT add new music, room tone, or ambient textures that were absent in prior clips.
+3. Diegetic SFX (footsteps, props, doors) may follow the action, but the BACKGROUND bed stays constant.
+4. Voice perspective tracks camera distance; timbre/pitch still follow the Voice Profile Anchors.\n`
+      : "";
+
+    // === SEAM CONTINUITY (Đạo diễn/Dựng + Diễn xuất): clip này NỐI LIỀN clip trước ===
+    // Frame-chaining feeds the previous clip's last frame as this clip's start image at render
+    // time; reinforce it in the prompt so Veo opens IN-MOTION instead of resetting with a hard cut.
+    const seamContinuityBlock = (previousClipContext && String(previousClipContext).trim())
+      ? `\n[SEAM CONTINUITY - THIS CLIP CONTINUES THE PREVIOUS ONE]
+This is NOT a fresh scene. The previous clip's final frame is this clip's starting image. Therefore:
+1. OPEN on the same lighting, color grade and composition as the previous clip's end - no hard cut, no fade-in, no establishing reset at t=0.
+2. CONTINUE the subject's body position, gait, hand pose and gaze from where the previous clip ended - do not snap to a new pose.
+3. CONTINUE the emotional state and energy; emotion may evolve but must not jump (max ~20% shift) - no expression reset.
+4. Keep lens and camera height continuous unless the script gives a narrative reason to cut.
+5. The first sub-shot (00:00-00:02) must visibly flow out of the prior action.\n`
+      : "";
+
     const userPromptContent = `[INPUT CONTEXT JSON]
 ${assembledContextJSON}
 
@@ -218,7 +247,7 @@ Output language: ${languageLock}
 
 [ON-SCREEN CHARACTERS (RENDER THESE ONLY)]
 ${presentCharacters.map((c: any) => `- ${c.character_id}`).join("\n") || "- (no characters in scene - environment only)"}
-${offScreenBlock}${voiceProfileBlock}
+${offScreenBlock}${voiceProfileBlock}${audioContinuityBlock}${seamContinuityBlock}
 [ADDITIONAL RULES & CONTINUITY]
 ${additionalContext}`;
 
@@ -379,6 +408,15 @@ For EVERY dialogue line you generate:
 
 VOICE SWAP IS A CRITICAL FAILURE. If male character speaks with female voice (or vice versa), the entire clip is rejected.
 Pitch ranges: Male typically 100-140 Hz, Female typically 180-260 Hz. Cross-binding is FORBIDDEN.
+
+[CRITICAL: FRONT-LOAD full_flattened_prompt FOR VEO ADHERENCE]
+Veo weights the EARLIEST tokens most heavily, and very long prompts can be truncated. Order full_flattened_prompt so identity and style survive even if the tail is cut:
+1. Locked subject identity FIRST (visual_dna_full + eye_details + skin_texture + accessories + signature_props), verbatim.
+2. Then the scene_bible_tokens (style fingerprints), verbatim.
+3. Then environment_invariant, then lighting_invariant, then camera_invariant (with the "(thats where the camera is)" marker).
+4. Then the timestamped action sequence.
+5. Dialogue LAST.
+Never bury the locked identity or style tokens in the middle or end of the prompt.
 
 [CRITICAL: SINGLE-SPEAKER PREFERENCE]
 If the scene has multiple characters but only ONE speaks, the other character should be:
