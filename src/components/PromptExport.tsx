@@ -93,6 +93,14 @@ export default function PromptExport({ project, onUpdate }: Props) {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  // Copy the JSON of ALL clips (only the final_json_output — what Veo/tools consume)
+  const copyAllJson = () => {
+    const jsonArray = completedClips.map(c => c.final_json_output);
+    navigator.clipboard.writeText(JSON.stringify(jsonArray, null, 2));
+    setCopiedId("all-json");
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
   const exportAllAsJson = () => {
     const exportData = {
       project_title: project.title,
@@ -356,19 +364,27 @@ export default function PromptExport({ project, onUpdate }: Props) {
         <div className="mt-4 flex flex-wrap gap-2">
           {activeTab === "prompts" ? (
             <>
-              <button onClick={copyAllPrompts}
-                className={`px-4 py-2.5 rounded-xl font-black text-[10px] tracking-widest transition-all ${
-                  copiedId === "all" ? "bg-green-600 text-white" : "bg-zinc-800 hover:bg-zinc-700 text-white"
+              {/* PRIMARY: copy all JSON (what the user actually needs) */}
+              <button onClick={copyAllJson}
+                className={`px-4 py-2.5 rounded-xl font-black text-[10px] tracking-widest transition-all shadow-xl ${
+                  copiedId === "all-json" ? "bg-green-600 text-white" : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-500/20"
                 }`}>
-                {copiedId === "all" ? "COPIED!" : "COPY ALL"}
-              </button>
-              <button onClick={exportAsText}
-                className="bg-indigo-600 hover:bg-indigo-500 text-white font-black px-4 py-2.5 rounded-xl text-[10px] tracking-widest shadow-xl shadow-indigo-500/20">
-                EXPORT .TXT
+                {copiedId === "all-json" ? "✓ ĐÃ COPY JSON" : "📋 COPY ALL JSON"}
               </button>
               <button onClick={exportAllAsJson}
                 className="bg-green-600 hover:bg-green-500 text-white font-black px-4 py-2.5 rounded-xl text-[10px] tracking-widest shadow-xl shadow-green-500/20">
-                EXPORT .JSON
+                TẢI FILE .JSON
+              </button>
+              {/* Secondary: plain-text options */}
+              <button onClick={copyAllPrompts}
+                className={`px-4 py-2.5 rounded-xl font-black text-[10px] tracking-widest transition-all border ${
+                  copiedId === "all" ? "bg-green-600 text-white border-green-500" : "bg-transparent border-zinc-700 text-zinc-500 hover:text-zinc-300"
+                }`}>
+                {copiedId === "all" ? "COPIED!" : "Copy text"}
+              </button>
+              <button onClick={exportAsText}
+                className="bg-transparent border border-zinc-700 text-zinc-500 hover:text-zinc-300 font-black px-4 py-2.5 rounded-xl text-[10px] tracking-widest">
+                .TXT
               </button>
             </>
           ) : (
@@ -401,22 +417,22 @@ export default function PromptExport({ project, onUpdate }: Props) {
         </div>
       </div>
 
-      {/* HELP BANNER (prompts tab) - explains what to paste into Veo */}
+      {/* HELP BANNER (prompts tab) */}
       {activeTab === "prompts" && completedClips.length > 0 && (
         <div className="mb-4 bg-indigo-950/40 border border-indigo-500/20 rounded-[20px] p-4 shrink-0 text-[11px] text-zinc-400 leading-relaxed">
-          <p className="font-black text-indigo-300 uppercase tracking-widest mb-2 text-[10px]">📋 Cách dùng prompt với Veo Flow</p>
+          <p className="font-black text-indigo-300 uppercase tracking-widest mb-2 text-[10px]">📋 Cách lấy prompt</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="bg-black/30 rounded-xl p-3">
-              <p className="font-black text-indigo-400 mb-1">📋 COPY PROMPT → VEO</p>
-              <p>Đây là prompt chính. Dán vào ô prompt của Veo Flow là xong.</p>
+              <p className="font-black text-indigo-400 mb-1">📋 COPY JSON</p>
+              <p>Nút chính. Copy JSON của clip (hoặc COPY ALL JSON cho tất cả) — đây là thứ bạn cần.</p>
             </div>
             <div className="bg-black/30 rounded-xl p-3">
-              <p className="font-black text-zinc-300 mb-1">NEG (Negative)</p>
-              <p>Tuỳ chọn. Dán vào ô &quot;Negative prompt&quot; riêng của Veo nếu có (nếu không, prompt chính đã chứa sẵn).</p>
+              <p className="font-black text-green-400 mb-1">TẢI FILE .JSON</p>
+              <p>Tải toàn bộ dự án + clips về dạng một file .json để lưu/đưa vào tool.</p>
             </div>
             <div className="bg-black/30 rounded-xl p-3">
-              <p className="font-black text-zinc-500 mb-1">JSON</p>
-              <p>KHÔNG dán vào Veo. Chỉ để lưu trữ/xem lại bản thiết kế gốc.</p>
+              <p className="font-black text-zinc-500 mb-1">Text / .TXT</p>
+              <p>Tuỳ chọn phụ — prompt dạng chữ nếu cần dán tay vào Veo Flow.</p>
             </div>
           </div>
         </div>
@@ -557,31 +573,23 @@ export default function PromptExport({ project, onUpdate }: Props) {
                   <div className="flex flex-col sm:flex-row gap-2 shrink-0">
                     {activeTab === "prompts" ? (
                       <>
-                        <button
-                          onClick={() => copyToClipboard(clip.flattenedPrompt, clip.id)}
-                          title="Dán đoạn này vào ô prompt của Veo Flow"
-                          className={`px-3 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
-                            copiedId === clip.id ? "bg-green-600 text-white" : "bg-indigo-600 hover:bg-indigo-500 text-white"
-                          }`}>
-                          {copiedId === clip.id ? "✓ COPIED" : "📋 COPY PROMPT → VEO"}
-                        </button>
-                        {clip.negativePrompt && (
-                          <button
-                            onClick={() => copyToClipboard(clip.negativePrompt || "", clip.id + "-neg")}
-                            title="Negative prompt - dán vào ô 'Negative prompt' riêng của Veo (nếu có)"
-                            className={`px-3 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
-                              copiedId === clip.id + "-neg" ? "bg-green-600 text-white" : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
-                            }`}>
-                            {copiedId === clip.id + "-neg" ? "✓" : "NEG"}
-                          </button>
-                        )}
+                        {/* PRIMARY: copy JSON (what the user uses) */}
                         <button
                           onClick={() => copyToClipboard(JSON.stringify(clip.final_json_output, null, 2), clip.id + "-json")}
-                          title="JSON gốc - chỉ để lưu trữ/xem lại, KHÔNG dán vào Veo"
+                          title="Copy JSON của clip này"
                           className={`px-3 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
-                            copiedId === clip.id + "-json" ? "bg-green-600 text-white" : "bg-transparent border border-zinc-700 text-zinc-500 hover:text-zinc-300"
+                            copiedId === clip.id + "-json" ? "bg-green-600 text-white" : "bg-indigo-600 hover:bg-indigo-500 text-white"
                           }`}>
-                          {copiedId === clip.id + "-json" ? "✓" : "JSON"}
+                          {copiedId === clip.id + "-json" ? "✓ ĐÃ COPY" : "📋 COPY JSON"}
+                        </button>
+                        {/* Secondary: plain-text prompt */}
+                        <button
+                          onClick={() => copyToClipboard(clip.flattenedPrompt, clip.id)}
+                          title="Copy prompt dạng text (tuỳ chọn)"
+                          className={`px-3 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border ${
+                            copiedId === clip.id ? "bg-green-600 text-white border-green-500" : "bg-transparent border-zinc-700 text-zinc-500 hover:text-zinc-300"
+                          }`}>
+                          {copiedId === clip.id ? "✓" : "Text"}
                         </button>
                       </>
                     ) : (

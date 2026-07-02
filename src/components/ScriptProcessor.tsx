@@ -426,20 +426,19 @@ export default function ScriptProcessor({ project, onUpdate }: Props) {
                       {expandedClip === clip.id && !isPending && clip.final_json_output && (
                         <div className="px-4 sm:px-8 pb-6 pt-0">
                           <div className="bg-black/40 rounded-2xl p-4 sm:p-6 border border-white/5 space-y-4">
-                            {/* PROMPT FOR VEO - the thing to actually paste */}
+                            {/* JSON - primary output */}
                             <div className="border border-indigo-500/30 rounded-xl p-3 bg-indigo-950/20">
                               <div className="flex items-center justify-between mb-2 gap-2">
-                                <span className="text-[9px] font-black text-indigo-300 uppercase">✅ Prompt để dán vào Veo</span>
+                                <span className="text-[9px] font-black text-indigo-300 uppercase">✅ JSON của clip</span>
                                 <button
-                                  onClick={() => copyToClipboard(clip.flattenedPrompt)}
+                                  onClick={() => copyToClipboard(JSON.stringify(clip.final_json_output, null, 2))}
                                   className="text-[9px] font-black text-white bg-indigo-600 hover:bg-indigo-500 px-3 py-1 rounded-lg transition-all">
-                                  📋 COPY → VEO
+                                  📋 COPY JSON
                                 </button>
                               </div>
-                              <p className="text-[10px] text-zinc-300 font-mono leading-relaxed whitespace-pre-wrap max-h-36 overflow-y-auto">
-                                {clip.flattenedPrompt}
-                              </p>
-                              <p className="text-[9px] text-zinc-600 mt-1">{clip.flattenedPrompt.length.toLocaleString()} ký tự</p>
+                              <pre className="text-[10px] text-zinc-300 font-mono leading-relaxed whitespace-pre-wrap overflow-x-auto max-h-48 overflow-y-auto">
+                                {JSON.stringify(clip.final_json_output, null, 2)}
+                              </pre>
                             </div>
 
                             {/* Negative prompt - optional separate field */}
@@ -459,14 +458,21 @@ export default function ScriptProcessor({ project, onUpdate }: Props) {
                               </div>
                             )}
 
-                            {/* JSON - storage only, collapsed look */}
+                            {/* Prompt text - optional secondary */}
                             <details>
                               <summary className="text-[9px] font-bold text-zinc-600 uppercase cursor-pointer hover:text-zinc-400">
-                                JSON gốc (chỉ để lưu/xem, KHÔNG dán vào Veo) ▾
+                                Prompt dạng text (tuỳ chọn) ▾
                               </summary>
-                              <pre className="mt-2 text-[10px] text-zinc-500 font-mono leading-relaxed whitespace-pre-wrap overflow-x-auto p-4 bg-zinc-950 rounded-xl border border-white/5 max-h-48 overflow-y-auto">
-                                {JSON.stringify(clip.final_json_output.visual_prompt, null, 2)}
-                              </pre>
+                              <div className="mt-2 flex justify-end">
+                                <button
+                                  onClick={() => copyToClipboard(clip.flattenedPrompt)}
+                                  className="text-[9px] font-black text-zinc-300 bg-zinc-800 hover:bg-zinc-700 px-3 py-1 rounded-lg transition-all">
+                                  Copy text
+                                </button>
+                              </div>
+                              <p className="mt-2 text-[10px] text-zinc-500 font-mono leading-relaxed whitespace-pre-wrap p-4 bg-zinc-950 rounded-xl border border-white/5 max-h-40 overflow-y-auto">
+                                {clip.flattenedPrompt}
+                              </p>
                             </details>
                             {/* PHASE 3: Critic Report Detail */}
                             {clip.criticReport && (
